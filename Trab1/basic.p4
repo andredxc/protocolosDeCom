@@ -144,8 +144,6 @@ control MyIngress(inout headers hdr,
             // https://github.com/p4lang/behavioral-model/blob/master/docs/simple_switch.md
     }
 
-    action
-
     table ipv4_lpm {
         key = {
             hdr.ipv4.dstAddr: lpm;
