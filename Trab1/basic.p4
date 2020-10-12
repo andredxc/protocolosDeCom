@@ -132,13 +132,19 @@ control MyIngress(inout headers hdr,
         hdr.ipv4.ttl = hdr.ipv4.ttl - 1;
     }
 
-    action fill_intFilho() {
+    action new_intFilho() {
+
+        hdr.intFilho.push_back(1);
+        hdr.intFilho.last.setValid()
+
         // hdr.intFilho.last.ID_Switch     = ; NAO SEI
         hdr.intFilho.last.Porta_Entrada = standard_metadata.ingress_port;
         hdr.intFilho.last.Porta_Saida   = standard_metadata.egress_spec;
         hdr.intFilho.last.Timestamp     = intrinsic_metadata.ingress_global_timestamp;
             // https://github.com/p4lang/behavioral-model/blob/master/docs/simple_switch.md
     }
+
+    action
 
     table ipv4_lpm {
         key = {
@@ -156,8 +162,7 @@ control MyIngress(inout headers hdr,
     apply {
         if (hdr.intPai.isValid()) {
             hdr.intPai.Quantidade_Filhos = hdr.intPai.Quantidade_Filhos + 1;
-            hdr.intFilho[hdr.intPai.Quantidade_Filhos].setValid();
-            fill_intFilho();
+            new_intFilho();
             if (hdr.ipv4.isValid()) {
                 ipv4_lpm.apply();
             }
