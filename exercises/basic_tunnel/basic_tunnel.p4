@@ -2,9 +2,9 @@
 #include <core.p4>
 #include <v1model.p4>
 
+// NOTE: new type added here
+const bit<16> TYPE_MYTUNNEL = 0x1212;
 const bit<16> TYPE_IPV4 = 0x800;
-
-#define MAX_HOPS 20;
 
 /*************************************************************************
 *********************** H E A D E R S  ***********************************
@@ -18,6 +18,12 @@ header ethernet_t {
     macAddr_t dstAddr;
     macAddr_t srcAddr;
     bit<16>   etherType;
+}
+
+// NOTE: added new header type
+header myTunnel_t {
+    bit<16> proto_id;
+    bit<16> dst_id;
 }
 
 header ipv4_t {
@@ -35,34 +41,22 @@ header ipv4_t {
     ip4Addr_t dstAddr;
 }
 
-header int_pai_t {
-    bit<32> Tamanho_Filho;
-    bit<32> Quantidade_Filhos;
-}
-
-header int_filho_t {
-  bit<32> ID_Switch;
-  bit<9> Porta_Entrada;
-  bit<9> Porta_Saida;
-  bit<48> Timestamp;
-  bit<6> padding;
-}
-
 struct metadata {
     /* empty */
 }
 
+// NOTE: Added new header type to headers struct
 struct headers {
     ethernet_t   ethernet;
+    myTunnel_t   myTunnel;
     ipv4_t       ipv4;
-    int_pai_t    intPai;
-    int_filho_t[MAX_HOPS] intFilho;
 }
 
 /*************************************************************************
 *********************** P A R S E R  ***********************************
 *************************************************************************/
 
+// TODO: Update the parser to parse the myTunnel header as well
 parser MyParser(packet_in packet,
                 out headers hdr,
                 inout metadata meta,
@@ -75,41 +69,24 @@ parser MyParser(packet_in packet,
     state parse_ethernet {
         packet.extract(hdr.ethernet);
         transition select(hdr.ethernet.etherType) {
-            TYPE_IPV4: parse_ipv4;
-            default: accept;
+            TYPE_IPV4 : parse_ipv4;
+            default : accept;
         }
     }
 
     state parse_ipv4 {
         packet.extract(hdr.ipv4);
-        transition parse_intPai;
-        // transition accept;
+        transition accept;
     }
 
-    state parse_intPai {
-        packet.extract(hdr.intPai);
-        meta.parser_metadata.remaining = hdr.intPai.Quantidade_Filhos;
-        transition select(hdr.intPai.Quantidade_Filhos) {
-            0       : accept
-            default : parse_intFilho;
-        }
-    }
 
-    state parse_intFilho {
-        packet.extract(hdr.intFilho.next);
-        meta.parser_metadata.remaining = meta.parser_metadata.remaining  - 1;
-        transition select(meta.parser_metadata.remaining) {
-            0 : accept;
-            default: parse_intFilho;
-        }
-    }
 }
 
 /*************************************************************************
 ************   C H E C K S U M    V E R I F I C A T I O N   *************
 *************************************************************************/
 
-control MyVerifyChecksum(inout headers hdr, inout metadata meta) {
+control MyVerifyChecksum(inout headers hdr, inout metadata meta) {   
     apply {  }
 }
 
@@ -124,22 +101,14 @@ control MyIngress(inout headers hdr,
     action drop() {
         mark_to_drop();
     }
-
+    
     action ipv4_forward(macAddr_t dstAddr, egressSpec_t port) {
         standard_metadata.egress_spec = port;
         hdr.ethernet.srcAddr = hdr.ethernet.dstAddr;
         hdr.ethernet.dstAddr = dstAddr;
         hdr.ipv4.ttl = hdr.ipv4.ttl - 1;
     }
-
-    action fill_intFilho() {
-        // hdr.intFilho.last.ID_Switch     = ; NAO SEI
-        hdr.intFilho.last.Porta_Entrada = standard_metadata.ingress_port;
-        hdr.intFilho.last.Porta_Saida   = standard_metadata.egress_spec;
-        hdr.intFilho.last.Timestamp     = intrinsic_metadata.ingress_global_timestamp;
-            // https://github.com/p4lang/behavioral-model/blob/master/docs/simple_switch.md
-    }
-
+    
     table ipv4_lpm {
         key = {
             hdr.ipv4.dstAddr: lpm;
@@ -153,17 +122,17 @@ control MyIngress(inout headers hdr,
         default_action = drop();
     }
 
+    // TODO: declare a new action: myTunnel_forward(egressSpec_t port)
+
+
+    // TODO: declare a new table: myTunnel_exact
+    // TODO: also remember to add table entries!
+
+
     apply {
-        if (hdr.intPai.isValid()) {
-            hdr.intPai.Quantidade_Filhos = hdr.intPai.Quantidade_Filhos + 1;
-            hdr.intFilho[hdr.intPai.Quantidade_Filhos].setValid();
-            fill_intFilho();
-            if (hdr.ipv4.isValid()) {
-                ipv4_lpm.apply();
-            }
-        }
-        else {
-            drop();
+        // TODO: Update control flow
+        if (hdr.ipv4.isValid()) {
+            ipv4_lpm.apply();
         }
     }
 }
@@ -209,8 +178,8 @@ control MyComputeChecksum(inout headers  hdr, inout metadata meta) {
 control MyDeparser(packet_out packet, in headers hdr) {
     apply {
         packet.emit(hdr.ethernet);
+        // TODO: emit myTunnel header as well
         packet.emit(hdr.ipv4);
-        packet.emit(hdr.intPai);
     }
 }
 

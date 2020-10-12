@@ -2,9 +2,9 @@
 #include <core.p4>
 #include <v1model.p4>
 
+const bit<16> TYPE_MYTUNNEL = 0x1212;
 const bit<16> TYPE_IPV4 = 0x800;
-
-#define MAX_HOPS 20;
+const bit<32> MAX_TUNNEL_ID = 1 << 16;
 
 /*************************************************************************
 *********************** H E A D E R S  ***********************************
@@ -18,6 +18,11 @@ header ethernet_t {
     macAddr_t dstAddr;
     macAddr_t srcAddr;
     bit<16>   etherType;
+}
+
+header myTunnel_t {
+    bit<16> proto_id;
+    bit<16> dst_id;
 }
 
 header ipv4_t {
@@ -35,28 +40,14 @@ header ipv4_t {
     ip4Addr_t dstAddr;
 }
 
-header int_pai_t {
-    bit<32> Tamanho_Filho;
-    bit<32> Quantidade_Filhos;
-}
-
-header int_filho_t {
-  bit<32> ID_Switch;
-  bit<9> Porta_Entrada;
-  bit<9> Porta_Saida;
-  bit<48> Timestamp;
-  bit<6> padding;
-}
-
 struct metadata {
     /* empty */
 }
 
 struct headers {
     ethernet_t   ethernet;
+    myTunnel_t   myTunnel;
     ipv4_t       ipv4;
-    int_pai_t    intPai;
-    int_filho_t[MAX_HOPS] intFilho;
 }
 
 /*************************************************************************
@@ -75,6 +66,15 @@ parser MyParser(packet_in packet,
     state parse_ethernet {
         packet.extract(hdr.ethernet);
         transition select(hdr.ethernet.etherType) {
+            TYPE_MYTUNNEL: parse_myTunnel;
+            TYPE_IPV4: parse_ipv4;
+            default: accept;
+        }
+    }
+
+    state parse_myTunnel {
+        packet.extract(hdr.myTunnel);
+        transition select(hdr.myTunnel.proto_id) {
             TYPE_IPV4: parse_ipv4;
             default: accept;
         }
@@ -82,34 +82,16 @@ parser MyParser(packet_in packet,
 
     state parse_ipv4 {
         packet.extract(hdr.ipv4);
-        transition parse_intPai;
-        // transition accept;
+        transition accept;
     }
 
-    state parse_intPai {
-        packet.extract(hdr.intPai);
-        meta.parser_metadata.remaining = hdr.intPai.Quantidade_Filhos;
-        transition select(hdr.intPai.Quantidade_Filhos) {
-            0       : accept
-            default : parse_intFilho;
-        }
-    }
-
-    state parse_intFilho {
-        packet.extract(hdr.intFilho.next);
-        meta.parser_metadata.remaining = meta.parser_metadata.remaining  - 1;
-        transition select(meta.parser_metadata.remaining) {
-            0 : accept;
-            default: parse_intFilho;
-        }
-    }
 }
 
 /*************************************************************************
 ************   C H E C K S U M    V E R I F I C A T I O N   *************
 *************************************************************************/
 
-control MyVerifyChecksum(inout headers hdr, inout metadata meta) {
+control MyVerifyChecksum(inout headers hdr, inout metadata meta) {   
     apply {  }
 }
 
@@ -121,10 +103,14 @@ control MyVerifyChecksum(inout headers hdr, inout metadata meta) {
 control MyIngress(inout headers hdr,
                   inout metadata meta,
                   inout standard_metadata_t standard_metadata) {
+
+    counter(MAX_TUNNEL_ID, CounterType.packets_and_bytes) ingressTunnelCounter;
+    counter(MAX_TUNNEL_ID, CounterType.packets_and_bytes) egressTunnelCounter;
+
     action drop() {
         mark_to_drop();
     }
-
+    
     action ipv4_forward(macAddr_t dstAddr, egressSpec_t port) {
         standard_metadata.egress_spec = port;
         hdr.ethernet.srcAddr = hdr.ethernet.dstAddr;
@@ -132,12 +118,24 @@ control MyIngress(inout headers hdr,
         hdr.ipv4.ttl = hdr.ipv4.ttl - 1;
     }
 
-    action fill_intFilho() {
-        // hdr.intFilho.last.ID_Switch     = ; NAO SEI
-        hdr.intFilho.last.Porta_Entrada = standard_metadata.ingress_port;
-        hdr.intFilho.last.Porta_Saida   = standard_metadata.egress_spec;
-        hdr.intFilho.last.Timestamp     = intrinsic_metadata.ingress_global_timestamp;
-            // https://github.com/p4lang/behavioral-model/blob/master/docs/simple_switch.md
+    action myTunnel_ingress(bit<16> dst_id) {
+        hdr.myTunnel.setValid();
+        hdr.myTunnel.dst_id = dst_id;
+        hdr.myTunnel.proto_id = hdr.ethernet.etherType;
+        hdr.ethernet.etherType = TYPE_MYTUNNEL;
+        ingressTunnelCounter.count((bit<32>) hdr.myTunnel.dst_id);
+    }
+
+    action myTunnel_forward(egressSpec_t port) {
+        standard_metadata.egress_spec = port;
+    }
+
+    action myTunnel_egress(macAddr_t dstAddr, egressSpec_t port) {
+        standard_metadata.egress_spec = port;
+        hdr.ethernet.dstAddr = dstAddr;
+        hdr.ethernet.etherType = hdr.myTunnel.proto_id;
+        hdr.myTunnel.setInvalid();
+        egressTunnelCounter.count((bit<32>) hdr.myTunnel.dst_id);
     }
 
     table ipv4_lpm {
@@ -146,24 +144,36 @@ control MyIngress(inout headers hdr,
         }
         actions = {
             ipv4_forward;
+            myTunnel_ingress;
             drop;
             NoAction;
+        }
+        size = 1024;
+        default_action = NoAction();
+    }
+
+    table myTunnel_exact {
+        key = {
+            hdr.myTunnel.dst_id: exact;
+        }
+        actions = {
+            myTunnel_forward;
+            myTunnel_egress;
+            drop;
         }
         size = 1024;
         default_action = drop();
     }
 
     apply {
-        if (hdr.intPai.isValid()) {
-            hdr.intPai.Quantidade_Filhos = hdr.intPai.Quantidade_Filhos + 1;
-            hdr.intFilho[hdr.intPai.Quantidade_Filhos].setValid();
-            fill_intFilho();
-            if (hdr.ipv4.isValid()) {
-                ipv4_lpm.apply();
-            }
+        if (hdr.ipv4.isValid() && !hdr.myTunnel.isValid()) {
+            // Process only non-tunneled IPv4 packets.
+            ipv4_lpm.apply();
         }
-        else {
-            drop();
+
+        if (hdr.myTunnel.isValid()) {
+            // Process all tunneled packets.
+            myTunnel_exact.apply();
         }
     }
 }
@@ -209,8 +219,8 @@ control MyComputeChecksum(inout headers  hdr, inout metadata meta) {
 control MyDeparser(packet_out packet, in headers hdr) {
     apply {
         packet.emit(hdr.ethernet);
+        packet.emit(hdr.myTunnel);
         packet.emit(hdr.ipv4);
-        packet.emit(hdr.intPai);
     }
 }
 

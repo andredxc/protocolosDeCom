@@ -3,8 +3,9 @@
 #include <v1model.p4>
 
 const bit<16> TYPE_IPV4 = 0x800;
+const bit<16> TYPE_SRCROUTING = 0x1234;
 
-#define MAX_HOPS 20;
+#define MAX_HOPS 9
 
 /*************************************************************************
 *********************** H E A D E R S  ***********************************
@@ -18,6 +19,11 @@ header ethernet_t {
     macAddr_t dstAddr;
     macAddr_t srcAddr;
     bit<16>   etherType;
+}
+
+header srcRoute_t {
+    bit<1>    bos;
+    bit<15>   port;
 }
 
 header ipv4_t {
@@ -35,28 +41,14 @@ header ipv4_t {
     ip4Addr_t dstAddr;
 }
 
-header int_pai_t {
-    bit<32> Tamanho_Filho;
-    bit<32> Quantidade_Filhos;
-}
-
-header int_filho_t {
-  bit<32> ID_Switch;
-  bit<9> Porta_Entrada;
-  bit<9> Porta_Saida;
-  bit<48> Timestamp;
-  bit<6> padding;
-}
-
 struct metadata {
     /* empty */
 }
 
 struct headers {
-    ethernet_t   ethernet;
-    ipv4_t       ipv4;
-    int_pai_t    intPai;
-    int_filho_t[MAX_HOPS] intFilho;
+    ethernet_t              ethernet;
+    srcRoute_t[MAX_HOPS]    srcRoutes;
+    ipv4_t                  ipv4;
 }
 
 /*************************************************************************
@@ -75,35 +67,26 @@ parser MyParser(packet_in packet,
     state parse_ethernet {
         packet.extract(hdr.ethernet);
         transition select(hdr.ethernet.etherType) {
-            TYPE_IPV4: parse_ipv4;
+            TYPE_SRCROUTING: parse_srcRouting;
             default: accept;
+        }
+    }
+
+    state parse_srcRouting {
+        packet.extract(hdr.srcRoutes.next);
+        transition select(hdr.srcRoutes.last.bos) {
+            1: parse_ipv4;
+            default: parse_srcRouting;
         }
     }
 
     state parse_ipv4 {
         packet.extract(hdr.ipv4);
-        transition parse_intPai;
-        // transition accept;
+        transition accept;
     }
 
-    state parse_intPai {
-        packet.extract(hdr.intPai);
-        meta.parser_metadata.remaining = hdr.intPai.Quantidade_Filhos;
-        transition select(hdr.intPai.Quantidade_Filhos) {
-            0       : accept
-            default : parse_intFilho;
-        }
-    }
-
-    state parse_intFilho {
-        packet.extract(hdr.intFilho.next);
-        meta.parser_metadata.remaining = meta.parser_metadata.remaining  - 1;
-        transition select(meta.parser_metadata.remaining) {
-            0 : accept;
-            default: parse_intFilho;
-        }
-    }
 }
+
 
 /*************************************************************************
 ************   C H E C K S U M    V E R I F I C A T I O N   *************
@@ -121,48 +104,34 @@ control MyVerifyChecksum(inout headers hdr, inout metadata meta) {
 control MyIngress(inout headers hdr,
                   inout metadata meta,
                   inout standard_metadata_t standard_metadata) {
+
     action drop() {
         mark_to_drop();
     }
 
-    action ipv4_forward(macAddr_t dstAddr, egressSpec_t port) {
-        standard_metadata.egress_spec = port;
-        hdr.ethernet.srcAddr = hdr.ethernet.dstAddr;
-        hdr.ethernet.dstAddr = dstAddr;
+    action srcRoute_nhop() {
+        standard_metadata.egress_spec = (bit<9>)hdr.srcRoutes[0].port;
+        hdr.srcRoutes.pop_front(1);
+    }
+
+    action srcRoute_finish() {
+        hdr.ethernet.etherType = TYPE_IPV4;
+    }
+
+    action update_ttl(){
         hdr.ipv4.ttl = hdr.ipv4.ttl - 1;
     }
 
-    action fill_intFilho() {
-        // hdr.intFilho.last.ID_Switch     = ; NAO SEI
-        hdr.intFilho.last.Porta_Entrada = standard_metadata.ingress_port;
-        hdr.intFilho.last.Porta_Saida   = standard_metadata.egress_spec;
-        hdr.intFilho.last.Timestamp     = intrinsic_metadata.ingress_global_timestamp;
-            // https://github.com/p4lang/behavioral-model/blob/master/docs/simple_switch.md
-    }
-
-    table ipv4_lpm {
-        key = {
-            hdr.ipv4.dstAddr: lpm;
-        }
-        actions = {
-            ipv4_forward;
-            drop;
-            NoAction;
-        }
-        size = 1024;
-        default_action = drop();
-    }
-
     apply {
-        if (hdr.intPai.isValid()) {
-            hdr.intPai.Quantidade_Filhos = hdr.intPai.Quantidade_Filhos + 1;
-            hdr.intFilho[hdr.intPai.Quantidade_Filhos].setValid();
-            fill_intFilho();
-            if (hdr.ipv4.isValid()) {
-                ipv4_lpm.apply();
+        if (hdr.srcRoutes[0].isValid()){
+            if (hdr.srcRoutes[0].bos == 1){
+                srcRoute_finish();
             }
-        }
-        else {
+            srcRoute_nhop();
+            if (hdr.ipv4.isValid()){
+                update_ttl();
+            }
+        }else{
             drop();
         }
     }
@@ -183,23 +152,7 @@ control MyEgress(inout headers hdr,
 *************************************************************************/
 
 control MyComputeChecksum(inout headers  hdr, inout metadata meta) {
-     apply {
-	update_checksum(
-	    hdr.ipv4.isValid(),
-            { hdr.ipv4.version,
-	      hdr.ipv4.ihl,
-              hdr.ipv4.diffserv,
-              hdr.ipv4.totalLen,
-              hdr.ipv4.identification,
-              hdr.ipv4.flags,
-              hdr.ipv4.fragOffset,
-              hdr.ipv4.ttl,
-              hdr.ipv4.protocol,
-              hdr.ipv4.srcAddr,
-              hdr.ipv4.dstAddr },
-            hdr.ipv4.hdrChecksum,
-            HashAlgorithm.csum16);
-    }
+    apply {  }
 }
 
 /*************************************************************************
@@ -209,8 +162,8 @@ control MyComputeChecksum(inout headers  hdr, inout metadata meta) {
 control MyDeparser(packet_out packet, in headers hdr) {
     apply {
         packet.emit(hdr.ethernet);
+        packet.emit(hdr.srcRoutes);
         packet.emit(hdr.ipv4);
-        packet.emit(hdr.intPai);
     }
 }
 

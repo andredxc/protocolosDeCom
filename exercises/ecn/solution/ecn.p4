@@ -2,9 +2,9 @@
 #include <core.p4>
 #include <v1model.p4>
 
+const bit<8>  TCP_PROTOCOL = 0x06;
 const bit<16> TYPE_IPV4 = 0x800;
-
-#define MAX_HOPS 20;
+const bit<19> ECN_THRESHOLD = 10;
 
 /*************************************************************************
 *********************** H E A D E R S  ***********************************
@@ -23,7 +23,8 @@ header ethernet_t {
 header ipv4_t {
     bit<4>    version;
     bit<4>    ihl;
-    bit<8>    diffserv;
+    bit<6>    diffserv;
+    bit<2>    ecn;
     bit<16>   totalLen;
     bit<16>   identification;
     bit<3>    flags;
@@ -35,28 +36,12 @@ header ipv4_t {
     ip4Addr_t dstAddr;
 }
 
-header int_pai_t {
-    bit<32> Tamanho_Filho;
-    bit<32> Quantidade_Filhos;
-}
-
-header int_filho_t {
-  bit<32> ID_Switch;
-  bit<9> Porta_Entrada;
-  bit<9> Porta_Saida;
-  bit<48> Timestamp;
-  bit<6> padding;
-}
-
 struct metadata {
-    /* empty */
 }
 
 struct headers {
     ethernet_t   ethernet;
     ipv4_t       ipv4;
-    int_pai_t    intPai;
-    int_filho_t[MAX_HOPS] intFilho;
 }
 
 /*************************************************************************
@@ -82,34 +67,16 @@ parser MyParser(packet_in packet,
 
     state parse_ipv4 {
         packet.extract(hdr.ipv4);
-        transition parse_intPai;
-        // transition accept;
-    }
-
-    state parse_intPai {
-        packet.extract(hdr.intPai);
-        meta.parser_metadata.remaining = hdr.intPai.Quantidade_Filhos;
-        transition select(hdr.intPai.Quantidade_Filhos) {
-            0       : accept
-            default : parse_intFilho;
-        }
-    }
-
-    state parse_intFilho {
-        packet.extract(hdr.intFilho.next);
-        meta.parser_metadata.remaining = meta.parser_metadata.remaining  - 1;
-        transition select(meta.parser_metadata.remaining) {
-            0 : accept;
-            default: parse_intFilho;
-        }
+        transition accept;
     }
 }
+
 
 /*************************************************************************
 ************   C H E C K S U M    V E R I F I C A T I O N   *************
 *************************************************************************/
 
-control MyVerifyChecksum(inout headers hdr, inout metadata meta) {
+control MyVerifyChecksum(inout headers hdr, inout metadata meta) {   
     apply {  }
 }
 
@@ -124,20 +91,12 @@ control MyIngress(inout headers hdr,
     action drop() {
         mark_to_drop();
     }
-
+    
     action ipv4_forward(macAddr_t dstAddr, egressSpec_t port) {
         standard_metadata.egress_spec = port;
         hdr.ethernet.srcAddr = hdr.ethernet.dstAddr;
         hdr.ethernet.dstAddr = dstAddr;
         hdr.ipv4.ttl = hdr.ipv4.ttl - 1;
-    }
-
-    action fill_intFilho() {
-        // hdr.intFilho.last.ID_Switch     = ; NAO SEI
-        hdr.intFilho.last.Porta_Entrada = standard_metadata.ingress_port;
-        hdr.intFilho.last.Porta_Saida   = standard_metadata.egress_spec;
-        hdr.intFilho.last.Timestamp     = intrinsic_metadata.ingress_global_timestamp;
-            // https://github.com/p4lang/behavioral-model/blob/master/docs/simple_switch.md
     }
 
     table ipv4_lpm {
@@ -150,20 +109,12 @@ control MyIngress(inout headers hdr,
             NoAction;
         }
         size = 1024;
-        default_action = drop();
+        default_action = NoAction();
     }
-
+    
     apply {
-        if (hdr.intPai.isValid()) {
-            hdr.intPai.Quantidade_Filhos = hdr.intPai.Quantidade_Filhos + 1;
-            hdr.intFilho[hdr.intPai.Quantidade_Filhos].setValid();
-            fill_intFilho();
-            if (hdr.ipv4.isValid()) {
-                ipv4_lpm.apply();
-            }
-        }
-        else {
-            drop();
+        if (hdr.ipv4.isValid()) {
+            ipv4_lpm.apply();
         }
     }
 }
@@ -175,20 +126,30 @@ control MyIngress(inout headers hdr,
 control MyEgress(inout headers hdr,
                  inout metadata meta,
                  inout standard_metadata_t standard_metadata) {
-    apply {  }
+    action mark_ecn() {
+        hdr.ipv4.ecn = 3;
+    }
+    apply {
+        if (hdr.ipv4.ecn == 1 || hdr.ipv4.ecn == 2){
+            if (standard_metadata.enq_qdepth >= ECN_THRESHOLD){
+                mark_ecn();
+            }
+        }
+    }
 }
 
 /*************************************************************************
 *************   C H E C K S U M    C O M P U T A T I O N   **************
 *************************************************************************/
 
-control MyComputeChecksum(inout headers  hdr, inout metadata meta) {
+control MyComputeChecksum(inout headers hdr, inout metadata meta) {
      apply {
 	update_checksum(
 	    hdr.ipv4.isValid(),
             { hdr.ipv4.version,
 	      hdr.ipv4.ihl,
-              hdr.ipv4.diffserv,
+	      hdr.ipv4.diffserv,
+	      hdr.ipv4.ecn,	
               hdr.ipv4.totalLen,
               hdr.ipv4.identification,
               hdr.ipv4.flags,
@@ -210,7 +171,6 @@ control MyDeparser(packet_out packet, in headers hdr) {
     apply {
         packet.emit(hdr.ethernet);
         packet.emit(hdr.ipv4);
-        packet.emit(hdr.intPai);
     }
 }
 

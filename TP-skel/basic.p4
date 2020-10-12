@@ -58,8 +58,8 @@ parser MyParser(packet_in packet,
     state parse_ethernet {
         packet.extract(hdr.ethernet);
         transition select(hdr.ethernet.etherType) {
-            TYPE_IPV4 : parse_ipv4;
-            default   : accept;
+            TYPE_IPV4: parse_ipv4;
+            default: accept;
         }
     }
 
@@ -67,14 +67,14 @@ parser MyParser(packet_in packet,
         packet.extract(hdr.ipv4);
         transition accept;
     }
-}
 
+}
 
 /*************************************************************************
 ************   C H E C K S U M    V E R I F I C A T I O N   *************
 *************************************************************************/
 
-control MyVerifyChecksum(inout headers hdr, inout metadata meta) {
+control MyVerifyChecksum(inout headers hdr, inout metadata meta) {   
     apply {  }
 }
 
@@ -87,21 +87,20 @@ control MyIngress(inout headers hdr,
                   inout metadata meta,
                   inout standard_metadata_t standard_metadata) {
     action drop() {
-	    mark_to_drop();
+        mark_to_drop();
     }
-
+    
     action ipv4_forward(macAddr_t dstAddr, egressSpec_t port) {
         standard_metadata.egress_spec = port;
         hdr.ethernet.srcAddr = hdr.ethernet.dstAddr;
         hdr.ethernet.dstAddr = dstAddr;
         hdr.ipv4.ttl = hdr.ipv4.ttl - 1;
     }
-
+    
     table ipv4_lpm {
         key = {
             hdr.ipv4.dstAddr: lpm;
         }
-
         actions = {
             ipv4_forward;
             drop;
@@ -110,13 +109,10 @@ control MyIngress(inout headers hdr,
         size = 1024;
         default_action = drop();
     }
-
+    
     apply {
         if (hdr.ipv4.isValid()) {
             ipv4_lpm.apply();
-            if (hdr.ipv4.srcAddr == 0x0a000101) {
-                mark_to_drop();
-            }
         }
     }
 }
@@ -128,14 +124,14 @@ control MyIngress(inout headers hdr,
 control MyEgress(inout headers hdr,
                  inout metadata meta,
                  inout standard_metadata_t standard_metadata) {
-    apply { }
+    apply {  }
 }
 
 /*************************************************************************
 *************   C H E C K S U M    C O M P U T A T I O N   **************
 *************************************************************************/
 
-control MyComputeChecksum(inout headers hdr, inout metadata meta) {
+control MyComputeChecksum(inout headers  hdr, inout metadata meta) {
      apply {
 	update_checksum(
 	    hdr.ipv4.isValid(),
@@ -154,7 +150,6 @@ control MyComputeChecksum(inout headers hdr, inout metadata meta) {
             HashAlgorithm.csum16);
     }
 }
-
 
 /*************************************************************************
 ***********************  D E P A R S E R  *******************************
