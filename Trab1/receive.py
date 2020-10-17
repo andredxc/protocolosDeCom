@@ -33,12 +33,28 @@ class IPOption_MRI(IPOption):
                                    [],
                                    IntField("", 0),
                                    length_from=lambda pkt:pkt.count*4) ]
+
+class intPai(Packet):
+    name = "intPai"
+    fields_desc = [ BitField("Quantidade_Filhos", 0, 32)]
+
+class intFilho(Packet):
+    name = "intFilho"
+    fields_desc = [ BitField("ID_Switch", 0x0, 32),
+                    BitField("Porta_Entrada", 0x0, 9),
+                    BitField("Porta_Saida", 0x0, 9),
+                    BitField("Timestamp", 0x0, 48), 
+                    BitField("padding", 0x0, 6)]
+
 def handle_pkt(pkt):
-    if TCP in pkt and pkt[TCP].dport == 1234:
-        print "got a packet"
-        pkt.show2()
-    #    hexdump(pkt)
-        sys.stdout.flush()
+    if IP in pkt and pkt[IP].flags == 1 or pkt[IP].flags == 3 or pkt[IP].flags == 5 or pkt[IP].flags == 7: #if first flag (reserved) is set to 1 i.e. there is a int header
+        #TODO
+    else:
+        if TCP in pkt and pkt[TCP].dport == 1234:
+            print "got a packet"             
+            pkt.show2()
+        #    hexdump(pkt)
+            sys.stdout.flush()
 
 
 def main():

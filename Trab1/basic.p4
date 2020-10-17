@@ -36,7 +36,7 @@ header ipv4_t {
 }
 
 header int_pai_t {
-    bit<32> Tamanho_Filho;
+//    bit<32> Tamanho_Filho;
     bit<32> Quantidade_Filhos;
 }
 
@@ -82,8 +82,10 @@ parser MyParser(packet_in packet,
 
     state parse_ipv4 {
         packet.extract(hdr.ipv4);
-        transition parse_intPai;
-        // transition accept;
+        if (hdr.ipv4.flags == 1 || hdr.ipv4.flags == 3 || hdr.ipv4.flags == 5 || hdr.ipv4.flags == 7) //there is an int header
+            transition parse_intPai;
+        else
+            transition accept;
     }
 
     state parse_intPai {
@@ -132,10 +134,16 @@ control MyIngress(inout headers hdr,
         hdr.ipv4.ttl = hdr.ipv4.ttl - 1;
     }
 
+    action new_intPai() {
+//       hdr.intPai.push_back(1);
+        hdr.intPai.setValid();
+        hdr.intPai.Quantidade_Filhos = 0;
+    }
+
     action new_intFilho() {
 
         hdr.intFilho.push_back(1);
-        hdr.intFilho.last.setValid()
+        hdr.intFilho.last.setValid();
 
         // hdr.intFilho.last.ID_Switch     = ; NAO SEI
         hdr.intFilho.last.Porta_Entrada = standard_metadata.ingress_port;
@@ -158,15 +166,32 @@ control MyIngress(inout headers hdr,
     }
 
     apply {
-        if (hdr.intPai.isValid()) {
+        if (hdr.ipv4.flags == 1 || hdr.ipv4.flags == 3 || hdr.ipv4.flags == 5 || hdr.ipv4.flags == 7) {
+            if (hdr.intPai.isValid()) {
+                hdr.intPai.Quantidade_Filhos = hdr.intPai.Quantidade_Filhos + 1;
+                new_intFilho();
+                if (hdr.ipv4.isValid()) {
+                    ipv4_lpm.apply();
+                }
+            }
+            else {
+                drop();
+            }
+        } else {
+/*          switch(hdr.ipv4.flags){
+                case 0: hdr.ipv4.flags = 1;
+                case 2: hdr.ipv4.flags = 3;
+                case 4: hdr.ipv4.flags = 5;
+                case 6: hdr.ipv4.flags = 7;
+                default: hdr.ipv4.flags = 1;
+            }*/
+            hdr.ipv4.flags = hdr.ipv4.flags + 1;
+            new_intPai();
             hdr.intPai.Quantidade_Filhos = hdr.intPai.Quantidade_Filhos + 1;
             new_intFilho();
             if (hdr.ipv4.isValid()) {
-                ipv4_lpm.apply();
+                    ipv4_lpm.apply();
             }
-        }
-        else {
-            drop();
         }
     }
 }
@@ -214,6 +239,7 @@ control MyDeparser(packet_out packet, in headers hdr) {
         packet.emit(hdr.ethernet);
         packet.emit(hdr.ipv4);
         packet.emit(hdr.intPai);
+        packet.emit(hdr.intFilho);
     }
 }
 
