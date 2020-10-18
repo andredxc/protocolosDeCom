@@ -4,7 +4,7 @@
 
 const bit<16> TYPE_IPV4 = 0x800;
 
-#define MAX_HOPS 20;
+#define MAX_HOPS 20
 
 /*************************************************************************
 *********************** H E A D E R S  ***********************************
@@ -49,7 +49,7 @@ header int_filho_t {
 }
 
 struct metadata {
-    /* empty */
+    bit<32> nRemaining;
 }
 
 struct headers {
@@ -82,24 +82,29 @@ parser MyParser(packet_in packet,
 
     state parse_ipv4 {
         packet.extract(hdr.ipv4);
-        if (hdr.ipv4.flags == 1 || hdr.ipv4.flags == 3 || hdr.ipv4.flags == 5 || hdr.ipv4.flags == 7) //there is an int header
-            transition parse_intPai;
-        else
-            transition accept;
+        transition select(hdr.ipv4.flags) {
+            1 : parse_intPai;
+            3 : parse_intPai;
+            5 : parse_intPai;
+            7 : parse_intPai;
+            default : accept;
+        }
     }
 
     state parse_intPai {
         packet.extract(hdr.intPai);
-        meta.parser_metadata.remaining = hdr.intPai.Quantidade_Filhos;
+        // meta.parser_metadata.remaining = hdr.intPai.Quantidade_Filhos;
+        meta.nRemaining = hdr.intPai.Quantidade_Filhos;
         transition select(hdr.intPai.Quantidade_Filhos) {
-            0       : accept
+            0       : accept;
             default : parse_intFilho;
         }
     }
 
     state parse_intFilho {
         packet.extract(hdr.intFilho.next);
-        meta.parser_metadata.remaining = meta.parser_metadata.remaining  - 1;
+        meta.nRemaining = meta.nRemaining - 1;
+        // meta.parser_metadata.remaining = meta.parser_metadata.remaining  - 1;
         transition select(meta.parser_metadata.remaining) {
             0 : accept;
             default: parse_intFilho;
@@ -142,13 +147,13 @@ control MyIngress(inout headers hdr,
 
     action new_intFilho() {
 
-        hdr.intFilho.push_back(1);
-        hdr.intFilho.last.setValid();
+        hdr.intFilho.push_front(1);
+        hdr.intFilho[0].setValid();
 
-        // hdr.intFilho.last.ID_Switch     = ; NAO SEI
-        hdr.intFilho.last.Porta_Entrada = standard_metadata.ingress_port;
-        hdr.intFilho.last.Porta_Saida   = standard_metadata.egress_spec;
-        hdr.intFilho.last.Timestamp     = intrinsic_metadata.ingress_global_timestamp;
+        hdr.intFilho[0].Porta_Entrada = standard_metadata.ingress_port;
+        hdr.intFilho[0].Porta_Saida   = standard_metadata.egress_spec;
+        // hdr.intFilho[0].ID_Switch     = ; NAO SEI
+        // hdr.intFilho[0].Timestamp     = intrinsic_metadata.ingress_global_timestamp;
             // https://github.com/p4lang/behavioral-model/blob/master/docs/simple_switch.md
     }
 
