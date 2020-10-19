@@ -105,7 +105,7 @@ parser MyParser(packet_in packet,
         packet.extract(hdr.intFilho.next);
         meta.nRemaining = meta.nRemaining - 1;
         // meta.parser_metadata.remaining = meta.parser_metadata.remaining  - 1;
-        transition select(meta.parser_metadata.remaining) {
+        transition select(meta.nRemaining) {
             0 : accept;
             default: parse_intFilho;
         }
@@ -152,8 +152,8 @@ control MyIngress(inout headers hdr,
 
         hdr.intFilho[0].Porta_Entrada = standard_metadata.ingress_port;
         hdr.intFilho[0].Porta_Saida   = standard_metadata.egress_spec;
-        // hdr.intFilho[0].ID_Switch     = ; NAO SEI
-        // hdr.intFilho[0].Timestamp     = intrinsic_metadata.ingress_global_timestamp;
+        hdr.intFilho[0].ID_Switch     = 0x0;//NAO SEI
+        hdr.intFilho[0].Timestamp     = 0x0;//intrinsic_metadata.ingress_global_timestamp;
             // https://github.com/p4lang/behavioral-model/blob/master/docs/simple_switch.md
     }
 
