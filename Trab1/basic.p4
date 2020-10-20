@@ -93,7 +93,6 @@ parser MyParser(packet_in packet,
 
     state parse_intPai {
         packet.extract(hdr.intPai);
-        // meta.parser_metadata.remaining = hdr.intPai.Quantidade_Filhos;
         meta.nRemaining = hdr.intPai.Quantidade_Filhos;
         transition select(hdr.intPai.Quantidade_Filhos) {
             0       : accept;
@@ -104,7 +103,6 @@ parser MyParser(packet_in packet,
     state parse_intFilho {
         packet.extract(hdr.intFilho.next);
         meta.nRemaining = meta.nRemaining - 1;
-        // meta.parser_metadata.remaining = meta.parser_metadata.remaining  - 1;
         transition select(meta.nRemaining) {
             0 : accept;
             default: parse_intFilho;
@@ -140,16 +138,14 @@ control MyIngress(inout headers hdr,
     }
 
     action new_intPai() {
-//       hdr.intPai.push_back(1);
         hdr.intPai.setValid();
         hdr.intPai.Quantidade_Filhos = 0;
     }
 
     action new_intFilho() {
-
+        hdr.intPai.Quantidade_Filhos = hdr.intPai.Quantidade_Filhos + 1;
         hdr.intFilho.push_front(1);
         hdr.intFilho[0].setValid();
-
         hdr.intFilho[0].Porta_Entrada = standard_metadata.ingress_port;
         hdr.intFilho[0].Porta_Saida   = standard_metadata.egress_spec;
         hdr.intFilho[0].ID_Switch     = 0x0;//NAO SEI
@@ -173,7 +169,6 @@ control MyIngress(inout headers hdr,
     apply {
         if (hdr.ipv4.flags == 1 || hdr.ipv4.flags == 3 || hdr.ipv4.flags == 5 || hdr.ipv4.flags == 7) {
             if (hdr.intPai.isValid()) {
-                hdr.intPai.Quantidade_Filhos = hdr.intPai.Quantidade_Filhos + 1;
                 new_intFilho();
                 if (hdr.ipv4.isValid()) {
                     ipv4_lpm.apply();
@@ -182,17 +177,10 @@ control MyIngress(inout headers hdr,
             else {
                 drop();
             }
-        } else {
-/*          switch(hdr.ipv4.flags){
-                case 0: hdr.ipv4.flags = 1;
-                case 2: hdr.ipv4.flags = 3;
-                case 4: hdr.ipv4.flags = 5;
-                case 6: hdr.ipv4.flags = 7;
-                default: hdr.ipv4.flags = 1;
-            }*/
-            hdr.ipv4.flags = hdr.ipv4.flags + 1;
+        } 
+        else {
+            hdr.ipv4.flags = 1;
             new_intPai();
-            hdr.intPai.Quantidade_Filhos = hdr.intPai.Quantidade_Filhos + 1;
             new_intFilho();
             if (hdr.ipv4.isValid()) {
                     ipv4_lpm.apply();
