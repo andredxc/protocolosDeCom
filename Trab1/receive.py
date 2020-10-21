@@ -23,62 +23,40 @@ def get_if():
         exit(1)
     return iface
 
-class IPOption_MRI(IPOption):
-    name = "MRI"
-    option = 31
-    fields_desc = [ _IPOption_HDR,
-                    FieldLenField("length", None, fmt="B",
-                                  length_of="swids",
-                                  adjust=lambda pkt,l:l+4),
-                    ShortField("count", 0),
-                    FieldListField("swids",
-                                   [],
-                                   IntField("", 0),
-                                   length_from=lambda pkt:pkt.count*4) ]
+class IntPai(Packet):
+    name = "IntPai"
+    fields_desc = [ BitField("Quantidade_Filhos", 0x0, 32)]
 
-class intPai(Packet):
-    name = "intPai"
-    fields_desc = [ BitField("Quantidade_Filhos", 0, 32)]
+bind_layers(IP, IntPai, flags=4)
 
-class intFilho(Packet):
-    name = "intFilho"
+class IntFilho(Packet):
+    name = "IntFilho"
     fields_desc = [ BitField("ID_Switch", 0x0, 32),
                     BitField("Porta_Entrada", 0x0, 9),
                     BitField("Porta_Saida", 0x0, 9),
                     BitField("Timestamp", 0x0, 48), 
                     BitField("padding", 0x0, 6)]
 
-bind_layers(IP, intPai, flags=1)
-
 def handle_pkt(pkt):
     print pkt
 
     try:
-        if (IP in pkt) and (pkt[IP].flags % 2 != 0):
-            # First flag (reserved) is set to 1 i.e. there is a int header
-            print('IP packet with odd IP flags value')
-            hdrIntPai = pkt[intPai]
-            if (hdrIntPai):
-                print('INT pai header in packet')
-                nChildren = pkt[intPai].Quantidade_Filhos
-                print('INT with nChildren=' + Quantidade_Filhos)
+        if (IP in pkt):
+            print('IP header in packet')
+            if (pkt[IP].flags == 4):
+                print('Evil bit is set')
+                hdrIntPai = pkt[IntPai]
+                if (hdrIntPai):
+                    print('INT header in  packet')
+                    nChildren = pkt[intPai].Quantidade_Filhos
+                    print('nChildren=' + Quantidade_Filhos)
+                else:
+                    print('No INT header in packet')
             else:
-                print('INT pai header NOT in packet')
-
-
-            # a = pkt[IP].payload
-            # print a
-            # p = intPai(a)
-            # i = p[intPai].Quantidade_Filhos #provavelmente errado
-            # print "Numero de intFilhos: " + i
-            # for i in range(i):
-            #     print "ID:" + pkt[intFilho].ID_Switch + "\n Porta Entrada:" + pkt[intFilho].Porta_Entrada + "\n Porta Saida:" + pkt[intFilho].Porta_Saida + "\n Timestamp:" + pkt[intFilho].Timestamp #certamente errado
+                print('Evil bit is not set, flags=' + pkt[IP].flags)
         else:
-            if TCP in pkt and pkt[TCP].dport == 1234:
-                print "got a TCP packet without INT"             
-                pkt.show2()
-            #    hexdump(pkt)
-                sys.stdout.flush()
+            print('NOT an IP packet')
+
     except Exception as inst:
         print('Caught exception in handle_pkt, printing packet')
         pkt.show2()
