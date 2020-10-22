@@ -45,9 +45,9 @@ header int_pai_t {
 
 header int_filho_t {
   bit<32> ID_Switch;
+  bit<48> Timestamp;
   bit<9> Porta_Entrada;
   bit<9> Porta_Saida;
-  bit<48> Timestamp;
   bit<6> padding;
   // Total length:  bits (13 bytes)
 }

@@ -37,6 +37,17 @@ def get_if():
 #                     BitField("Timestamp", 0x0, 48), 
 #                     BitField("padding", 0x0, 6)]
 
+def hexToInt(strBytes, length=len(strBytes)):
+    """
+    Converts length amount of bits from strHex to int
+    """
+    strHex = strBytes.encode('hex')
+    strBin = ''
+    for strVal in range(min(len(strHex), length)):
+        strBin += "{0:0b}".format(int(strVal, 16))
+
+    return int(strBin, 2)
+
 def handle_pkt(pkt):
 
     try:
@@ -44,8 +55,11 @@ def handle_pkt(pkt):
             print('IP header in packet')
             if (pkt[IP].flags == 4):
                 print('Evil bit is set')
-
                 initPayload = bytes(pkt[IP].payload)
+
+                # "{0:08b}".format(int(strHex, 16))
+                # codecs.encode(strHex, 'hex')
+
                 nChildSize  = int(codecs.encode(initPayload[0:4], 'hex'), 16)
                 nChildren   = int(codecs.encode(initPayload[4:8], 'hex'), 16)
                 print('nChildren=%d; nChildSize=%d' % (nChildren, nChildSize))
@@ -54,11 +68,12 @@ def handle_pkt(pkt):
                 for i in range(0, nChildren):
                     payload    = initPayload[nIndex:nIndex + nChildSize]
                     nSwitchID  = int(codecs.encode(payload[0:4], 'hex'), 16)
-                    # nInPort    = int(codecs.encode(payload[4:5], 'hex'), 16)
-                    nInPort    = 0
-                    # nOutPort   = int(codecs.encode(payload[5:6], 'hex'), 16)
-                    nOutPort   = 0
                     nTimestamp = int(codecs.encode(payload[6:12], 'hex'), 16)
+                    # nInPort    = int(codecs.encode(payload[4:5], 'hex'), 16)
+                    # nOutPort   = int(codecs.encode(payload[5:6], 'hex'), 16)
+                    nInPort    = hexToInt(payload[4:6], 9)
+                    nOutPort   = hexToInt(payload[4:6], 9)
+                    nOutPort   = 0
                     nIndex    += nChildSize
                     print('Read header=%d; SwitchID=%d; InPort=%d; OutPort=%d; Timestamp=%d' %
                         (i, nSwitchID, nInPort, nOutPort, nTimestamp))
@@ -66,6 +81,13 @@ def handle_pkt(pkt):
                 print('Evil bit is not set, flags=' + pkt[IP].flags)
         else:
             print('NOT an IP packet')
+
+            """
+            strHex = load.encode('hex')
+            "{0:08b}".format(int(strHex, 16))
+            codecs.encode(strHex, 'hex')
+
+            """
 
     except Exception as inst:
         print('Caught exception in handle_pkt, printing packet')
