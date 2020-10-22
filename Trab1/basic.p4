@@ -18,6 +18,7 @@ header ethernet_t {
     macAddr_t dstAddr;
     macAddr_t srcAddr;
     bit<16>   etherType;
+    // Total length: 112 bits (14 bytes)
 }
 
 header ipv4_t {
@@ -33,11 +34,13 @@ header ipv4_t {
     bit<16>   hdrChecksum;
     ip4Addr_t srcAddr;
     ip4Addr_t dstAddr;
+    // Total length: 160 bits (20 bytes)
 }
 
 header int_pai_t {
-//    bit<32> Tamanho_Filho;
+    bit<32> Tamanho_Filho;
     bit<32> Quantidade_Filhos;
+    // Total length: 64 bits (8 bytes)
 }
 
 header int_filho_t {
@@ -46,6 +49,7 @@ header int_filho_t {
   bit<9> Porta_Saida;
   bit<48> Timestamp;
   bit<6> padding;
+  // Total length:  bits (13 bytes)
 }
 
 struct metadata {
@@ -140,6 +144,7 @@ control MyIngress(inout headers hdr,
 
     action new_intPai() {
         hdr.intPai.setValid();
+        hdr.intPai.Tamanho_Filho = 13;
         hdr.intPai.Quantidade_Filhos = 0;
     }
 
@@ -149,8 +154,8 @@ control MyIngress(inout headers hdr,
         hdr.intFilho[0].setValid();
         hdr.intFilho[0].Porta_Entrada = standard_metadata.ingress_port;
         hdr.intFilho[0].Porta_Saida   = standard_metadata.egress_spec;
-        hdr.intFilho[0].ID_Switch     = 0x0;//NAO SEI
-        hdr.intFilho[0].Timestamp     = 0x0;//intrinsic_metadata.ingress_global_timestamp;
+        hdr.intFilho[0].ID_Switch     = 123;//NAO SEI
+        hdr.intFilho[0].Timestamp     = 456;//intrinsic_metadata.ingress_global_timestamp;
             // https://github.com/p4lang/behavioral-model/blob/master/docs/simple_switch.md
     }
 
