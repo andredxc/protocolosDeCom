@@ -13,6 +13,7 @@ const bit<16> TYPE_IPV4 = 0x800;
 typedef bit<9>  egressSpec_t;
 typedef bit<48> macAddr_t;
 typedef bit<32> ip4Addr_t;
+typedef bit<32> switchID_t;
 
 header ethernet_t {
     macAddr_t dstAddr;
@@ -88,10 +89,6 @@ parser MyParser(packet_in packet,
         packet.extract(hdr.ipv4);
         transition select(hdr.ipv4.flags) {
             4 : parse_intPai;
-            2 : parse_intPai;
-            // 3 : parse_intPai;
-            // 5 : parse_intPai;
-            // 7 : parse_intPai;
             default : accept;
         }
     }
@@ -135,8 +132,10 @@ control MyIngress(inout headers hdr,
         mark_to_drop();
     }
 
-    action ipv4_forward(macAddr_t dstAddr, egressSpec_t port) {
+    action ipv4_forward(macAddr_t dstAddr, egressSpec_t port, switchID_t switchID) {
         standard_metadata.egress_spec = port;
+        hdr.intFilho[0].Porta_Saida   = port;
+        hdr.intFilho[0].ID_Switch     = switchID;
         hdr.ethernet.srcAddr = hdr.ethernet.dstAddr;
         hdr.ethernet.dstAddr = dstAddr;
         hdr.ipv4.ttl = hdr.ipv4.ttl - 1;
@@ -153,10 +152,9 @@ control MyIngress(inout headers hdr,
         hdr.intFilho.push_front(1);
         hdr.intFilho[0].setValid();
         hdr.intFilho[0].Porta_Entrada = standard_metadata.ingress_port;
-        hdr.intFilho[0].Porta_Saida   = standard_metadata.egress_spec;
-        hdr.intFilho[0].ID_Switch     = 123;//NAO SEI
-        hdr.intFilho[0].Timestamp     = 456;//intrinsic_metadata.ingress_global_timestamp;
-            // https://github.com/p4lang/behavioral-model/blob/master/docs/simple_switch.md
+        hdr.intFilho[0].Timestamp     = standard_metadata.ingress_global_timestamp;
+        // https://github.com/p4lang/p4c/blob/master/p4include/v1model.p4          
+        // Porta_Saida and Switc_ID are set during ipv4_forward  
     }
 
     table ipv4_lpm {

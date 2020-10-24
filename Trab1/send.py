@@ -33,10 +33,11 @@ def main():
     addr = socket.gethostbyname(strAddr)
     iface = get_if()
 
-    print "sending on interface %s to %s" % (iface, str(addr))
+    print('Sending on interface %s to %s' % (iface, str(addr)))
+    print('TCP payload sent: %s' % strMsg)
     pkt =  Ether(src=get_if_hwaddr(iface), dst='ff:ff:ff:ff:ff:ff')
     pkt = pkt /IP(dst=addr) / TCP(dport=1234, sport=random.randint(49152,65535)) / strMsg
-    pkt.show2()
+    # pkt.show2()
     sendp(pkt, iface=iface, verbose=False)
 
 
