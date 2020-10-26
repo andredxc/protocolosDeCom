@@ -89,6 +89,9 @@ parser MyParser(packet_in packet,
         packet.extract(hdr.ipv4);
         transition select(hdr.ipv4.flags) {
             4 : parse_intPai;
+            5 : parse_intPai;
+            6 : parse_intPai;
+            7 : parse_intPai;
             default : accept;
         }
     }
@@ -171,7 +174,7 @@ control MyIngress(inout headers hdr,
     }
 
     apply {
-        if (hdr.ipv4.flags == 4) {
+        if (hdr.ipv4.flags == 4 || hdr.ipv4.flags == 5 || hdr.ipv4.flags == 6 || hdr.ipv4.flags == 7) {
             if (hdr.intPai.isValid()) {
                 new_intFilho();
                 if (hdr.ipv4.isValid()) {

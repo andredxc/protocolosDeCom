@@ -1,7 +1,6 @@
-"""
-23/10/2020
-Andre Dexheimer Carneiro (00243653) e Rubens Ideron (????????)
-"""
+#23/10/2020
+#Andre Dexheimer Carneiro (00243653) e Rubens Ideron (00243658)
+
 
 #!/usr/bin/env python
 import sys
@@ -35,7 +34,7 @@ def handle_pkt(pkt):
 
     if (IP in pkt):
         print('IP header in packet')
-        if (pkt[IP].flags == 4):
+        if (pkt[IP].flags == 4 or pkt[IP].flags == 5 or pkt[IP].flags == 6 or pkt[IP].flags == 7):
             print('Evil bit is set')
             fullPayload = bytes(pkt[IP].payload)
             # Parse IntPai header
@@ -47,7 +46,7 @@ def handle_pkt(pkt):
             # Parse IntFilho headers
             nStartIndex = intPaiHdr.nLengthBytes
             for i in range(0, intPaiHdr.nChildren):
-                payload      = fullPayload[nStartIndex:nStartIndex + intPaiHdr.nChildLength]
+                payload      = fullPayload[nStartIndex : nStartIndex + intPaiHdr.nChildLength]
                 newIntFilho  = IntFilho(payload)
                 nStartIndex += intPaiHdr.nChildLength
                 print('Read IntFilho[%d] header: %s' % (i, str(newIntFilho)))

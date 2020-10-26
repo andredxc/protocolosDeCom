@@ -1,6 +1,6 @@
 """
 23/10/2020
-Andre Dexheimer Carneiro (00243653) e Rubens Ideron (????????)
+Andre Dexheimer Carneiro (00243653) e Rubens Ideron (00243658)
 """
 
 def hexToInt(strBytes, paddingLeft=0, length=-1):
