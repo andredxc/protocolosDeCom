@@ -186,7 +186,7 @@ control MyIngress(inout headers hdr,
             }
         } 
         else {
-            hdr.ipv4.flags = 4;
+            hdr.ipv4.flags = hdr.ipv4.flags + 4;
             new_intPai();
             new_intFilho();
             if (hdr.ipv4.isValid()) {
