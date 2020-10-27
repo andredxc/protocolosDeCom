@@ -50,7 +50,7 @@ header int_filho_t {
   bit<9> Porta_Entrada;
   bit<9> Porta_Saida;
   bit<6> padding;
-  // Total length:  bits (13 bytes)
+  // Total length: 104 bits (13 bytes)
 }
 
 struct metadata {
