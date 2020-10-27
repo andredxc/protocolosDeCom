@@ -40,8 +40,6 @@ def handle_pkt(pkt):
             # Parse IntPai header
             intPaiHdr = IntPai(fullPayload)
             print('Parsed IntPai header: %s' % str(intPaiHdr))
-
-            print('load: ' + str(pkt[Raw].load))
             
             # Parse IntFilho headers
             nStartIndex = intPaiHdr.nLengthBytes
