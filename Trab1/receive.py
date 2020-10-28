@@ -33,9 +33,32 @@ def get_if():
 def handle_pkt(pkt):
 
     if (IP in pkt):
+<<<<<<< HEAD
         print('\nIP header in packet')
         if(TCP in pkt):
             print('TCP payload: ' + str(pkt[TCP].payload))
+=======
+        print('IP header in packet')
+        if (pkt[IP].flags == 4 or pkt[IP].flags == 5 or pkt[IP].flags == 6 or pkt[IP].flags == 7):
+            print('Evil bit is set')
+            fullPayload = bytes(pkt[IP].payload)
+            # Parse IntPai header
+            intPaiHdr = IntPai(fullPayload)
+            print('Parsed IntPai header: %s' % str(intPaiHdr))
+            
+            # Parse IntFilho headers
+            nStartIndex = intPaiHdr.nLengthBytes
+            for i in range(0, intPaiHdr.nChildren):
+                payload      = fullPayload[nStartIndex : nStartIndex + intPaiHdr.nChildLength]
+                newIntFilho  = IntFilho(payload)
+                nStartIndex += intPaiHdr.nChildLength
+                print('Read IntFilho[%d] header: %s' % (i, str(newIntFilho)))
+
+            # Read TCP payload
+            nStartIndex = intPaiHdr.nLengthBytes + (intPaiHdr.nChildLength * intPaiHdr.nChildren) + c_nTCPHeaderLenBytes
+            tcpPayload  = fullPayload[nStartIndex:]
+            print('TCP payload received: %s' % tcpPayload)
+>>>>>>> refs/remotes/origin/main
         else:
             print('No TCP header in pkt')
     else:
