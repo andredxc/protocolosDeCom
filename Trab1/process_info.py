@@ -1,6 +1,6 @@
 #23/10/2020
 #Andre Dexheimer Carneiro (00243653) e Rubens Ideron (00243658)
-
+#Must run on h1 (10.0.1.1)
 
 #!/usr/bin/env python
 import sys
@@ -34,10 +34,24 @@ def handle_pkt(pkt):
 
     if (IP in pkt):
         print('\nIP header in packet')
-        if(TCP in pkt):
-            print('TCP payload: ' + str(pkt[TCP].payload))
+        if(pkt[IP].proto == 145):
+            print("Info received.")
+            fullPayload = bytes(pkt[IP].payload)
+            # Parse IntPai header
+            intPaiHdr = IntPai(fullPayload)
+            print('Parsed IntPai header: %s' % str(intPaiHdr))
+
+            print('load: ' + str(pkt[Raw].load))
+            
+            # Parse IntFilho headers
+            nStartIndex = intPaiHdr.nLengthBytes
+            for i in range(0, intPaiHdr.nChildren):
+                payload      = fullPayload[nStartIndex : nStartIndex + intPaiHdr.nChildLength]
+                newIntFilho  = IntFilho(payload)
+                nStartIndex += intPaiHdr.nChildLength
+                print('Read IntFilho[%d] header: %s' % (i, str(newIntFilho)))
         else:
-            print('No TCP header in pkt')
+            print("Not an INFO packet.")
     else:
         print('Not an IP packet')
 

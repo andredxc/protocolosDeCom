@@ -53,15 +53,19 @@ header int_filho_t {
   // Total length: 104 bits (13 bytes)
 }
 
-struct metadata {
-    bit<32> nRemaining;
-}
-
 struct headers {
     ethernet_t   ethernet;
     ipv4_t       ipv4;
     int_pai_t    intPai;
     int_filho_t[MAX_HOPS] intFilho;
+}
+
+struct metadata {
+    bit<32> nRemaining;
+    ethernet_t  info_ethernet;
+    ipv4_t  info_ipv4;
+    int_pai_t  info_intPai;
+    int_filho_t[MAX_HOPS] info_intFilho;
 }
 
 /*************************************************************************
@@ -174,23 +178,33 @@ control MyIngress(inout headers hdr,
     }
 
     apply {
-        if (hdr.ipv4.flags == 4 || hdr.ipv4.flags == 5 || hdr.ipv4.flags == 6 || hdr.ipv4.flags == 7) {
-            if (hdr.intPai.isValid()) {
-                new_intFilho();
-                if (hdr.ipv4.isValid()) {
-                    ipv4_lpm.apply();
-                }
+        if(hdr.ipv4.protocol == 145){   //if its an info packet, just forward
+            if (hdr.ipv4.isValid()) {
+                ipv4_lpm.apply();
             }
-            else {
+            else{
                 drop();
             }
-        } 
-        else {
-            hdr.ipv4.flags = hdr.ipv4.flags + 4;
-            new_intPai();
-            new_intFilho();
-            if (hdr.ipv4.isValid()) {
-                    ipv4_lpm.apply();
+        }
+        else{
+            if (hdr.ipv4.flags >= 4) {  //if contains int headers
+                if (hdr.intPai.isValid()) {
+                    new_intFilho();
+                    if (hdr.ipv4.isValid()) {
+                        ipv4_lpm.apply();
+                    }
+                }
+                else {
+                    drop();
+                }
+            } 
+            else {  //if packet just entered the network
+                hdr.ipv4.flags = hdr.ipv4.flags + 4;
+                new_intPai();
+                new_intFilho();
+                if (hdr.ipv4.isValid()) {
+                        ipv4_lpm.apply();
+                }
             }
         }
     }
@@ -203,7 +217,46 @@ control MyIngress(inout headers hdr,
 control MyEgress(inout headers hdr,
                  inout metadata meta,
                  inout standard_metadata_t standard_metadata) {
-    apply {  }
+    
+    action drop() {
+        mark_to_drop();
+    }
+
+    action ipv4_forward_info(macAddr_t dstAddr, egressSpec_t port, switchID_t switchID) {
+        //standard_metadata.egress_spec = port;
+        meta.info_ethernet.srcAddr = hdr.ethernet.dstAddr;
+        meta.info_ethernet.dstAddr = dstAddr;
+    }
+
+    table ipv4_lpm_info {
+        key = {
+            hdr.ipv4.dstAddr: lpm;
+        }
+        actions = {
+            ipv4_forward_info;
+            drop;
+            NoAction;
+        }
+        size = 1024;
+        default_action = drop();
+    }
+    
+    apply {  
+        if(standard_metadata.egress_port == 1){ //if last hop
+            meta.info_ethernet = hdr.ethernet; //copy pkt
+            meta.info_ipv4 = hdr.ipv4;
+            meta.info_intPai = hdr.intPai;
+            meta.info_intFilho = hdr.intFilho;
+
+            meta.info_ipv4.dstAddr = 0x0A000101; //10.0.1.1 standard address
+            meta.info_ipv4.protocol = 145; //flags that this packet contains int headers (https://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml - 145 is unassigned)
+            //TODO: remove IP payload (TCP header and payload) from meta.info
+            ipv4_lpm_info.apply();
+
+            hdr.ipv4.flags = hdr.ipv4.flags - 4;
+            //TODO: remove int headers from hdr
+        }
+    }
 }
 
 /*************************************************************************
@@ -240,8 +293,21 @@ control MyDeparser(packet_out packet, in headers hdr) {
         packet.emit(hdr.ipv4);
         packet.emit(hdr.intPai);
         packet.emit(hdr.intFilho);
+
     }
 }
+
+/*
+control MyDeparser_info(packet_out packet, in headers hdr) {
+    apply {
+        packet.emit(meta.info_ethernet);
+        packet.emit(meta.info_ipv4);
+        packet.emit(meta.info_intPai);
+        packet.emit(meta.info_intFilho);
+
+    }
+}
+*/
 
 /*************************************************************************
 ***********************  S W I T C H  *******************************
