@@ -130,3 +130,6 @@ dmypy.json
 
 # P4 junk
 .pcap
+
+*.pcap
+logs/
