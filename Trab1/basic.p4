@@ -220,6 +220,21 @@ control MyEgress(inout headers hdr,
                  inout standard_metadata_t standard_metadata) {
 
         apply {
+            if(meta.lasthop == 1){
+                clone_egress_pkt_to_egress();
+                if(standard_metadata.instance_type == EGRESS_CLONE){
+                    hdr.ipv4.protocol = INFO_PROTOCOL;  //turn it into an INFO pkt
+                    hdr.ipv4.dstAddr = STANDARD_ADDRESS; //send INFO pkt to 10,0,1,1
+                    send_to_port(PSA_PORT_RECIRCULATE); //recirculate to forward the pkt
+                    //hdr.ipv4.payload.setInvalid();               //dont send payload
+                }
+                else{
+                    //hdr.intPai.setInvalid();   // remove int headers
+                    //hdr.intFilho.setInvalid(); // TODO: loop?
+                }
+                hdr.ipv4.flags = hdr.ipv4.flags - 4; //unset evil bit
+            }
+
         }
 }
 
