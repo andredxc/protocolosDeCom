@@ -5,6 +5,8 @@
 const bit<16> TYPE_IPV4 = 0x800;
 
 #define MAX_HOPS 20
+#define STANDARD_ADDRESS 0x0A000101 //10.0.1.1
+#define INFO_PROTOCOL 145 //https://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml - 145 is unassigned
 
 /*************************************************************************
 *********************** H E A D E R S  ***********************************
@@ -14,6 +16,7 @@ typedef bit<9>  egressSpec_t;
 typedef bit<48> macAddr_t;
 typedef bit<32> ip4Addr_t;
 typedef bit<32> switchID_t;
+typedef bit     lastHop_t;
 
 header ethernet_t {
     macAddr_t dstAddr;
@@ -54,6 +57,7 @@ header int_filho_t {
 }
 
 struct metadata {
+    bit lasthop;
     bit<32> nRemaining;
 }
 
@@ -135,13 +139,14 @@ control MyIngress(inout headers hdr,
         mark_to_drop();
     }
 
-    action ipv4_forward(macAddr_t dstAddr, egressSpec_t port, switchID_t switchID) {
+    action ipv4_forward(macAddr_t dstAddr, egressSpec_t port, switchID_t switchID, lastHop_t lastHop) {
         standard_metadata.egress_spec = port;
         hdr.intFilho[0].Porta_Saida   = port;
         hdr.intFilho[0].ID_Switch     = switchID;
         hdr.ethernet.srcAddr = hdr.ethernet.dstAddr;
         hdr.ethernet.dstAddr = dstAddr;
         hdr.ipv4.ttl = hdr.ipv4.ttl - 1;
+        meta.lasthop = lastHop;
     }
 
     action new_intPai() {
@@ -174,25 +179,35 @@ control MyIngress(inout headers hdr,
     }
 
     apply {
-        if (hdr.ipv4.flags == 4 || hdr.ipv4.flags == 5 || hdr.ipv4.flags == 6 || hdr.ipv4.flags == 7) {
-            if (hdr.intPai.isValid()) {
+
+         if(hdr.ipv4.protocol == INFO_PROTOCOL){   //if its an info packet, just forward
+            if (hdr.ipv4.isValid()) {
+                ipv4_lpm.apply();
+            }else{
+                drop();
+            }
+         }
+         else{
+            if (hdr.ipv4.flags >= 4) {  //There is already an int pai hdr
+                if (hdr.intPai.isValid()) {
+                    new_intFilho();
+                    if (hdr.ipv4.isValid()) {
+                        ipv4_lpm.apply();
+                    }
+                }
+                else {
+                    drop();
+                }
+            } 
+            else {  //the pkt just entered the network
+                hdr.ipv4.flags = hdr.ipv4.flags + 4;
+                new_intPai();
                 new_intFilho();
                 if (hdr.ipv4.isValid()) {
                     ipv4_lpm.apply();
                 }
             }
-            else {
-                drop();
-            }
-        } 
-        else {
-            hdr.ipv4.flags = hdr.ipv4.flags + 4;
-            new_intPai();
-            new_intFilho();
-            if (hdr.ipv4.isValid()) {
-                    ipv4_lpm.apply();
-            }
-        }
+         }
     }
 }
 
@@ -203,7 +218,9 @@ control MyIngress(inout headers hdr,
 control MyEgress(inout headers hdr,
                  inout metadata meta,
                  inout standard_metadata_t standard_metadata) {
-    apply {  }
+
+        apply {
+        }
 }
 
 /*************************************************************************
@@ -236,10 +253,10 @@ control MyComputeChecksum(inout headers  hdr, inout metadata meta) {
 
 control MyDeparser(packet_out packet, in headers hdr) {
     apply {
-        packet.emit(hdr.ethernet);
-        packet.emit(hdr.ipv4);
-        packet.emit(hdr.intPai);
-        packet.emit(hdr.intFilho);
+            packet.emit(hdr.ethernet);
+            packet.emit(hdr.ipv4);
+            packet.emit(hdr.intPai);
+            packet.emit(hdr.intFilho);
     }
 }
 

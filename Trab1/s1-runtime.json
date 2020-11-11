@@ -18,7 +18,8 @@
       "action_params": {
         "dstAddr": "00:00:00:00:01:01",
         "port": 1,
-        "switchID": 1
+        "switchID": 1,
+        "lastHop": 1
       }
     },
     {
@@ -30,7 +31,8 @@
       "action_params": {
         "dstAddr": "00:00:00:02:02:00",
         "port": 2,
-        "switchID": 1
+        "switchID": 1,
+        "lastHop": 0
       }
     },
     {
@@ -42,7 +44,8 @@
       "action_params": {
         "dstAddr": "00:00:00:03:03:00",
         "port": 3,
-        "switchID": 1
+        "switchID": 1,
+        "lastHop": 0
       }
     }
   ]
