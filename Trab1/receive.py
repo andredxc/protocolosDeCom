@@ -17,6 +17,7 @@ from scapy.all import bind_layers
 from int_headers import IntPai, IntFilho
 
 c_nTCPHeaderLenBytes = 20
+INFO_PROTOCOL = 145
 
 def get_if():
     ifs=get_if_list()
@@ -36,7 +37,7 @@ def handle_pkt(pkt):
 
     if (IP in pkt):
         print('IP header in packet')
-        if (pkt[IP].flags == 4 or pkt[IP].flags == 5 or pkt[IP].flags == 6 or pkt[IP].flags == 7 or True):
+        if (pkt[IP].flags == 4 or pkt[IP].flags == 5 or pkt[IP].flags == 6 or pkt[IP].flags == 7):
             print('Evil bit is set')
             fullPayload = bytes(pkt[IP].payload)
             # Parse IntPai header
@@ -58,7 +59,14 @@ def handle_pkt(pkt):
         else:
             print('Evil bit is not set, flags=' + str(pkt[IP].flags))
             # Read TCP payload
-            print('TCP payload: %s' % str(pkt[TCP].payload))
+            if(pkt[IP].proto == INFO_PROTOCOL):
+                if(TCP in pkt):
+                    print('TCP payload: %s' % str(pkt[TCP].payload))
+                else:
+                    print('No TCP header in pkt.')
+            else:
+                print("Not an INFO pkt.")
+                print("Protocol: %s" % str(pkt[IP].proto))
     else:
         print('Not an IP packet')
 

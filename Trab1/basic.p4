@@ -8,6 +8,15 @@ const bit<16> TYPE_IPV4 = 0x800;
 #define STANDARD_ADDRESS 0x0A000101 //10.0.1.1
 #define INFO_PROTOCOL 145 //https://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml - 145 is unassigned
 
+const bit<32> E2E_CLONE_SESSION_ID = 11;
+
+const bit<32> BMV2_V1MODEL_INSTANCE_TYPE_NORMAL        = 0;
+const bit<32> BMV2_V1MODEL_INSTANCE_TYPE_INGRESS_CLONE = 1;
+const bit<32> BMV2_V1MODEL_INSTANCE_TYPE_EGRESS_CLONE  = 2;
+const bit<32> BMV2_V1MODEL_INSTANCE_TYPE_COALESCED     = 3;
+const bit<32> BMV2_V1MODEL_INSTANCE_TYPE_RECIRC        = 4;
+const bit<32> BMV2_V1MODEL_INSTANCE_TYPE_REPLICATION   = 5;
+const bit<32> BMV2_V1MODEL_INSTANCE_TYPE_RESUBMIT      = 6;
 /*************************************************************************
 *********************** H E A D E R S  ***********************************
 *************************************************************************/
@@ -57,6 +66,7 @@ header int_filho_t {
 }
 
 struct metadata {
+    macAddr_t oldSrcEthernetAddress;
     bit lasthop;
     bit<32> nRemaining;
 }
@@ -143,6 +153,7 @@ control MyIngress(inout headers hdr,
         standard_metadata.egress_spec = port;
         hdr.intFilho[0].Porta_Saida   = port;
         hdr.intFilho[0].ID_Switch     = switchID;
+        meta.oldSrcEthernetAddress = hdr.ethernet.srcAddr;
         hdr.ethernet.srcAddr = hdr.ethernet.dstAddr;
         hdr.ethernet.dstAddr = dstAddr;
         hdr.ipv4.ttl = hdr.ipv4.ttl - 1;
@@ -179,31 +190,32 @@ control MyIngress(inout headers hdr,
     }
 
     apply {
-        //  if(hdr.ipv4.protocol == INFO_PROTOCOL){   //if its an info packet, just forward
-        //     if (hdr.ipv4.isValid()) {
-        //         ipv4_lpm.apply();
-        //     }else{
-        //         drop();
-        //     }
-        //  }
-         
-        if (hdr.ipv4.flags >= 4) {  //There is already an int pai hdr
-            if (hdr.intPai.isValid()) {
+        if(hdr.ipv4.protocol == INFO_PROTOCOL){   //if its an info packet, just forward
+             if (hdr.ipv4.isValid()) {
+                 ipv4_lpm.apply();
+             }else{
+                 drop();
+             }
+        }
+        else{ 
+            if (hdr.ipv4.flags >= 4) {  //There is already an int pai hdr
+                if (hdr.intPai.isValid()) {
+                    new_intFilho();
+                    if (hdr.ipv4.isValid()) {
+                        ipv4_lpm.apply();
+                    }
+                }
+                else {
+                    drop();
+                }
+            } 
+            else {  //the pkt just entered the network
+                hdr.ipv4.flags = hdr.ipv4.flags + 4;
+                new_intPai();
                 new_intFilho();
                 if (hdr.ipv4.isValid()) {
                     ipv4_lpm.apply();
                 }
-            }
-            else {
-                drop();
-            }
-        } 
-        else {  //the pkt just entered the network
-            hdr.ipv4.flags = hdr.ipv4.flags + 4;
-            new_intPai();
-            new_intFilho();
-            if (hdr.ipv4.isValid()) {
-                ipv4_lpm.apply();
             }
         }
     }
@@ -217,25 +229,62 @@ control MyEgress(inout headers hdr,
                  inout metadata meta,
                  inout standard_metadata_t standard_metadata) {
 
-        apply {
-            if(meta.lasthop == 1){
+    action op_clone(){
+        clone(CloneType.E2E, (bit<32>)32w100);
+    }
 
-                if (standard_metadata.instance_type == 0){
-                    // Original packet
-                    clone(CloneType.E2E, (bit<32>)32w100);
+    action nop(){
+    }
+
+    table calculate {
+        key = {
+        //    hdr.ipv4.protocol                   : exact;
+            meta.lasthop                        : exact;
+        //    standard_metadata.instance_type     : exact;
+        }
+        actions = {
+        //    info_pkt;
+        //    lasthop;
+              op_clone;
+              nop;
+        }
+        const entries = {
+            1 : op_clone();
+            0 : op_clone();
+        }
+    }
+
+    apply {
+        calculate.apply();
+    }
+
+/*
+        apply {
+            //if(meta.lasthop == 1){
+                clone(CloneType.E2E, (bit<32>)32w100);
+                //clone3(CloneType.E2E, E2E_CLONE_SESSION_ID, standard_metadata);
+            //}
+
+            if (standard_metadata.instance_type == BMV2_V1MODEL_INSTANCE_TYPE_NORMAL){ // Original packet
                     // Remove telemetry info
                     hdr.intPai.setInvalid();
                     hdr.intFilho[0].setInvalid();
                     hdr.intFilho[1].setInvalid();
                     hdr.intFilho[2].setInvalid();
-                    // hdr.ipv4.flags = hdr.ipv4.flags - 4; //unset evil bit
+                    hdr.ipv4.flags = hdr.ipv4.flags - 4; //unset evil bit
                 }
                 else{
-                    // Cloned packet
-                    hdr.ipv4.dstAddr = STANDARD_ADDRESS; //recirculate to forward the pkt
-                    standard_metadata.egress_spec = standard_metadata.ingress_port;
-                    // TODO: Remove TCP header to remove payload??
-                }
+                    if(standard_metadata.instance_type == BMV2_V1MODEL_INSTANCE_TYPE_EGRESS_CLONE){
+                        // Cloned packet
+                        hdr.ipv4.protocol = INFO_PROTOCOL;  //turn it into an INFO pkt
+                        hdr.ipv4.dstAddr = STANDARD_ADDRESS;
+                        hdr.ipv4.setValid();
+                        recirculate(standard_metadata);
+                        
+                        //standard_metadata.egress_spec = standard_metadata.ingress_port; //send back
+                        //hdr.ethernet.dstAddr = meta.oldSrcEthernetAddress; 
+                        // TODO: Remove TCP header to remove payload??
+                    }
 
                 // if(standard_metadata.instance_type == EGRESS_CLONE){
                 //     hdr.ipv4.protocol = INFO_PROTOCOL;  //turn it into an INFO pkt
@@ -247,10 +296,12 @@ control MyEgress(inout headers hdr,
                 //     //hdr.intPai.setInvalid();   // remove int headers
                 //     //hdr.intFilho.setInvalid(); // TODO: loop?
                 // }
-                // hdr.ipv4.flags = hdr.ipv4.flags - 4; //unset evil bit
+
+                //hdr.ipv4.flags = hdr.ipv4.flags - 4; //unset evil bit
             }
 
         }
+*/
 }
 
 /*************************************************************************
