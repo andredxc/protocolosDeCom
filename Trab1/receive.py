@@ -32,9 +32,11 @@ def get_if():
 
 def handle_pkt(pkt):
 
+    print('New packet --------------------------------')
+
     if (IP in pkt):
         print('IP header in packet')
-        if (pkt[IP].flags == 4 or pkt[IP].flags == 5 or pkt[IP].flags == 6 or pkt[IP].flags == 7):
+        if (pkt[IP].flags == 4 or pkt[IP].flags == 5 or pkt[IP].flags == 6 or pkt[IP].flags == 7 or True):
             print('Evil bit is set')
             fullPayload = bytes(pkt[IP].payload)
             # Parse IntPai header
@@ -55,6 +57,8 @@ def handle_pkt(pkt):
             print('TCP payload received: %s' % tcpPayload)
         else:
             print('Evil bit is not set, flags=' + str(pkt[IP].flags))
+            # Read TCP payload
+            print('TCP payload: %s' % str(pkt[TCP].payload))
     else:
         print('Not an IP packet')
 

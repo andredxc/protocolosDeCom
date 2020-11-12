@@ -179,35 +179,33 @@ control MyIngress(inout headers hdr,
     }
 
     apply {
-
-         if(hdr.ipv4.protocol == INFO_PROTOCOL){   //if its an info packet, just forward
-            if (hdr.ipv4.isValid()) {
-                ipv4_lpm.apply();
-            }else{
-                drop();
-            }
-         }
-         else{
-            if (hdr.ipv4.flags >= 4) {  //There is already an int pai hdr
-                if (hdr.intPai.isValid()) {
-                    new_intFilho();
-                    if (hdr.ipv4.isValid()) {
-                        ipv4_lpm.apply();
-                    }
-                }
-                else {
-                    drop();
-                }
-            } 
-            else {  //the pkt just entered the network
-                hdr.ipv4.flags = hdr.ipv4.flags + 4;
-                new_intPai();
+        //  if(hdr.ipv4.protocol == INFO_PROTOCOL){   //if its an info packet, just forward
+        //     if (hdr.ipv4.isValid()) {
+        //         ipv4_lpm.apply();
+        //     }else{
+        //         drop();
+        //     }
+        //  }
+         
+        if (hdr.ipv4.flags >= 4) {  //There is already an int pai hdr
+            if (hdr.intPai.isValid()) {
                 new_intFilho();
                 if (hdr.ipv4.isValid()) {
                     ipv4_lpm.apply();
                 }
             }
-         }
+            else {
+                drop();
+            }
+        } 
+        else {  //the pkt just entered the network
+            hdr.ipv4.flags = hdr.ipv4.flags + 4;
+            new_intPai();
+            new_intFilho();
+            if (hdr.ipv4.isValid()) {
+                ipv4_lpm.apply();
+            }
+        }
     }
 }
 
@@ -221,18 +219,35 @@ control MyEgress(inout headers hdr,
 
         apply {
             if(meta.lasthop == 1){
-                clone_egress_pkt_to_egress();
-                if(standard_metadata.instance_type == EGRESS_CLONE){
-                    hdr.ipv4.protocol = INFO_PROTOCOL;  //turn it into an INFO pkt
-                    hdr.ipv4.dstAddr = STANDARD_ADDRESS; //send INFO pkt to 10,0,1,1
-                    send_to_port(PSA_PORT_RECIRCULATE); //recirculate to forward the pkt
-                    //hdr.ipv4.payload.setInvalid();               //dont send payload
+
+                if (standard_metadata.instance_type == 0){
+                    // Original packet
+                    clone(CloneType.E2E, (bit<32>)32w100);
+                    // Remove telemetry info
+                    hdr.intPai.setInvalid();
+                    hdr.intFilho[0].setInvalid();
+                    hdr.intFilho[1].setInvalid();
+                    hdr.intFilho[2].setInvalid();
+                    // hdr.ipv4.flags = hdr.ipv4.flags - 4; //unset evil bit
                 }
                 else{
-                    //hdr.intPai.setInvalid();   // remove int headers
-                    //hdr.intFilho.setInvalid(); // TODO: loop?
+                    // Cloned packet
+                    hdr.ipv4.dstAddr = STANDARD_ADDRESS; //recirculate to forward the pkt
+                    standard_metadata.egress_spec = standard_metadata.ingress_port;
+                    // TODO: Remove TCP header to remove payload??
                 }
-                hdr.ipv4.flags = hdr.ipv4.flags - 4; //unset evil bit
+
+                // if(standard_metadata.instance_type == EGRESS_CLONE){
+                //     hdr.ipv4.protocol = INFO_PROTOCOL;  //turn it into an INFO pkt
+                //     hdr.ipv4.dstAddr = STANDARD_ADDRESS; //send INFO pkt to 10,0,1,1
+                //     send_to_port(PSA_PORT_RECIRCULATE); 
+                //     //hdr.ipv4.payload.setInvalid();               //dont send payload
+                // }
+                // else{
+                //     //hdr.intPai.setInvalid();   // remove int headers
+                //     //hdr.intFilho.setInvalid(); // TODO: loop?
+                // }
+                // hdr.ipv4.flags = hdr.ipv4.flags - 4; //unset evil bit
             }
 
         }
