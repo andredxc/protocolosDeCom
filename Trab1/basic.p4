@@ -216,8 +216,15 @@ control MyIngress(inout headers hdr,
                 if (hdr.ipv4.isValid()) {
                     ipv4_lpm.apply();
                 }
+                else{
+                    drop();
+                }
             }
         }
+
+        //if(standard_metadata.egress_spec == 1){ //if last hop
+            clone3(CloneType.I2E, (bit<32>)32w250, {standard_metadata});
+        //}
     }
 }
 
@@ -229,79 +236,55 @@ control MyEgress(inout headers hdr,
                  inout metadata meta,
                  inout standard_metadata_t standard_metadata) {
 
-    action op_clone(){
-        clone(CloneType.E2E, (bit<32>)32w100);
-    }
-
-    action nop(){
-    }
-
-    table calculate {
-        key = {
-        //    hdr.ipv4.protocol                   : exact;
-            meta.lasthop                        : exact;
-        //    standard_metadata.instance_type     : exact;
-        }
-        actions = {
-        //    info_pkt;
-        //    lasthop;
-              op_clone;
-              nop;
-        }
-        const entries = {
-            1 : op_clone();
-            0 : op_clone();
-        }
-    }
-
+    /*action clone_packet() {
+        const bit<32> REPORT_MIRROR_SESSION_ID = 500;
+        // Clone from egress to egress pipeline
+        clone(CloneType.E2E, REPORT_MIRROR_SESSION_ID);
+    }*/
+    
     apply {
-        calculate.apply();
-    }
-
+        //if(meta.lasthop == 1){
+            //clone_packet();
+            //clone(CloneType.E2E, (bit<32>)32w100);
+            //clone3(CloneType.E2E, E2E_CLONE_SESSION_ID, standard_metadata);
+        //}
 /*
-        apply {
-            //if(meta.lasthop == 1){
-                clone(CloneType.E2E, (bit<32>)32w100);
-                //clone3(CloneType.E2E, E2E_CLONE_SESSION_ID, standard_metadata);
-            //}
-
-            if (standard_metadata.instance_type == BMV2_V1MODEL_INSTANCE_TYPE_NORMAL){ // Original packet
-                    // Remove telemetry info
-                    hdr.intPai.setInvalid();
-                    hdr.intFilho[0].setInvalid();
-                    hdr.intFilho[1].setInvalid();
-                    hdr.intFilho[2].setInvalid();
-                    hdr.ipv4.flags = hdr.ipv4.flags - 4; //unset evil bit
-                }
-                else{
-                    if(standard_metadata.instance_type == BMV2_V1MODEL_INSTANCE_TYPE_EGRESS_CLONE){
-                        // Cloned packet
-                        hdr.ipv4.protocol = INFO_PROTOCOL;  //turn it into an INFO pkt
-                        hdr.ipv4.dstAddr = STANDARD_ADDRESS;
-                        hdr.ipv4.setValid();
-                        recirculate(standard_metadata);
-                        
-                        //standard_metadata.egress_spec = standard_metadata.ingress_port; //send back
-                        //hdr.ethernet.dstAddr = meta.oldSrcEthernetAddress; 
-                        // TODO: Remove TCP header to remove payload??
-                    }
-
-                // if(standard_metadata.instance_type == EGRESS_CLONE){
-                //     hdr.ipv4.protocol = INFO_PROTOCOL;  //turn it into an INFO pkt
-                //     hdr.ipv4.dstAddr = STANDARD_ADDRESS; //send INFO pkt to 10,0,1,1
-                //     send_to_port(PSA_PORT_RECIRCULATE); 
-                //     //hdr.ipv4.payload.setInvalid();               //dont send payload
-                // }
-                // else{
-                //     //hdr.intPai.setInvalid();   // remove int headers
-                //     //hdr.intFilho.setInvalid(); // TODO: loop?
-                // }
-
-                //hdr.ipv4.flags = hdr.ipv4.flags - 4; //unset evil bit
+        if (standard_metadata.instance_type == BMV2_V1MODEL_INSTANCE_TYPE_NORMAL){ // Original packet
+                // Remove telemetry info
+                //hdr.intPai.setInvalid();
+                //hdr.intFilho[0].setInvalid();
+                //hdr.intFilho[1].setInvalid();
+                //hdr.intFilho[2].setInvalid();
+                hdr.ipv4.flags = hdr.ipv4.flags - 4; //unset evil bit
             }
+            else{
+                if(standard_metadata.instance_type == BMV2_V1MODEL_INSTANCE_TYPE_EGRESS_CLONE){
+                    // Cloned packet
+                    hdr.ipv4.protocol = INFO_PROTOCOL;  //turn it into an INFO pkt
+                    hdr.ipv4.dstAddr = STANDARD_ADDRESS;
+                    hdr.ipv4.setValid();
+                    //recirculate(standard_metadata);
+                    
+                    //standard_metadata.egress_spec = standard_metadata.ingress_port; //send back
+                    //hdr.ethernet.dstAddr = meta.oldSrcEthernetAddress; 
+                    // TODO: Remove TCP header to remove payload??
+                }
 
+            // if(standard_metadata.instance_type == EGRESS_CLONE){
+            //     hdr.ipv4.protocol = INFO_PROTOCOL;  //turn it into an INFO pkt
+            //     hdr.ipv4.dstAddr = STANDARD_ADDRESS; //send INFO pkt to 10,0,1,1
+            //     send_to_port(PSA_PORT_RECIRCULATE); 
+            //     //hdr.ipv4.payload.setInvalid();               //dont send payload
+            // }
+            // else{
+            //     //hdr.intPai.setInvalid();   // remove int headers
+            //     //hdr.intFilho.setInvalid(); // TODO: loop?
+            // }
+
+            //hdr.ipv4.flags = hdr.ipv4.flags - 4; //unset evil bit
         }
 */
+    }
 }
 
 /*************************************************************************

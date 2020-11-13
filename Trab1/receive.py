@@ -66,7 +66,11 @@ def handle_pkt(pkt):
                     print('No TCP header in pkt.')
             else:
                 print("Not an INFO pkt.")
-                print("Protocol: %s" % str(pkt[IP].proto))
+                if(TCP in pkt):
+                    print('TCP payload: %s' % str(pkt[TCP].payload))
+                else:
+                    print("Not a TCP pkt")
+                #print("Protocol: %s" % str(pkt[IP].proto))
     else:
         print('Not an IP packet')
 
