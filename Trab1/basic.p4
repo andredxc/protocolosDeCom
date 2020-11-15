@@ -66,9 +66,11 @@ header int_filho_t {
 }
 
 struct metadata {
-    macAddr_t oldSrcEthernetAddress;
+    //macAddr_t oldSrcEthernetAddress;
+    bit<32> ID_Switch;
     bit lasthop;
     bit<32> nRemaining;
+    bit info;
 }
 
 struct headers {
@@ -151,9 +153,12 @@ control MyIngress(inout headers hdr,
 
     action ipv4_forward(macAddr_t dstAddr, egressSpec_t port, switchID_t switchID, lastHop_t lastHop) {
         standard_metadata.egress_spec = port;
-        hdr.intFilho[0].Porta_Saida   = port;
-        hdr.intFilho[0].ID_Switch     = switchID;
-        meta.oldSrcEthernetAddress = hdr.ethernet.srcAddr;
+        meta.ID_Switch = switchID;
+        if(meta.info == 0){
+            hdr.intFilho[0].Porta_Saida   = port;
+            hdr.intFilho[0].ID_Switch     = switchID;
+        }
+        //meta.oldSrcEthernetAddress = hdr.ethernet.srcAddr;
         hdr.ethernet.srcAddr = hdr.ethernet.dstAddr;
         hdr.ethernet.dstAddr = dstAddr;
         hdr.ipv4.ttl = hdr.ipv4.ttl - 1;
@@ -191,6 +196,7 @@ control MyIngress(inout headers hdr,
 
     apply {
         if(hdr.ipv4.protocol == INFO_PROTOCOL){   //if its an info packet, just forward
+            meta.info = 1;
              if (hdr.ipv4.isValid()) {
                  ipv4_lpm.apply();
              }else{
@@ -198,6 +204,7 @@ control MyIngress(inout headers hdr,
              }
         }
         else{ 
+            meta.info = 0;
             if (hdr.ipv4.flags >= 4) {  //There is already an int pai hdr
                 if (hdr.intPai.isValid()) {
                     new_intFilho();
@@ -220,10 +227,6 @@ control MyIngress(inout headers hdr,
                     drop();
                 }
             }
-        }
-    
-        if(hdr.ipv4.protocol != INFO_PROTOCOL && standard_metadata.egress_spec == 1){ //if last hop. for this topology could also be
-            clone3(CloneType.I2E, 250, {standard_metadata, meta});
         }
     }
 }
@@ -248,7 +251,11 @@ control MyEgress(inout headers hdr,
             //clone(CloneType.E2E, (bit<32>)32w100);
             //clone3(CloneType.E2E, E2E_CLONE_SESSION_ID, standard_metadata);
         //}
-        if(hdr.ipv4.protocol != INFO_PROTOCOL && meta.lasthop == 1){
+        if(hdr.ipv4.protocol != INFO_PROTOCOL && standard_metadata.egress_port == 1 && standard_metadata.instance_type == BMV2_V1MODEL_INSTANCE_TYPE_NORMAL){ //if last hop. Could also be meta.lasthop == 1
+            clone3(CloneType.E2E, 250, {meta});
+        }
+        
+        if(hdr.ipv4.protocol != INFO_PROTOCOL && standard_metadata.egress_port == 1){
             if (standard_metadata.instance_type == BMV2_V1MODEL_INSTANCE_TYPE_NORMAL){ // Original packet
                     // Remove telemetry info
                     //hdr.intPai.setInvalid();
@@ -258,17 +265,22 @@ control MyEgress(inout headers hdr,
                     //hdr.ipv4.flags = hdr.ipv4.flags - 4; //unset evil bit
                 }
                 else{
-                    if(standard_metadata.instance_type == BMV2_V1MODEL_INSTANCE_TYPE_INGRESS_CLONE){
+                    //if(standard_metadata.instance_type == BMV2_V1MODEL_INSTANCE_TYPE_EGRESS_CLONE){
                         // Cloned packet
                         hdr.ipv4.protocol = INFO_PROTOCOL;  //turn it into an INFO pkt
                         hdr.ipv4.dstAddr = STANDARD_ADDRESS;
                         hdr.ipv4.setValid();
+                        hdr.ipv4.flags = hdr.ipv4.flags - 4; //unset evil bit
+
+                        //if(meta.ID_Switch == 123){
+                            //TODO: configure mac addresses
+                        //}
                         //recirculate(standard_metadata);
                         
                         //standard_metadata.egress_spec = standard_metadata.ingress_port; //send back
                         //hdr.ethernet.dstAddr = meta.oldSrcEthernetAddress; 
                         // TODO: Remove TCP header to remove payload??
-                    }
+                    //}
 
                 // if(standard_metadata.instance_type == EGRESS_CLONE){
                 //     hdr.ipv4.protocol = INFO_PROTOCOL;  //turn it into an INFO pkt
