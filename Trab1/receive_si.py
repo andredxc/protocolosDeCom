@@ -7,6 +7,7 @@ import sys
 import struct
 import os
 import codecs
+import time
 from threading import Lock
 
 from scapy.all import sniff, sendp, hexdump, get_if_list, get_if_hwaddr
@@ -36,10 +37,12 @@ def get_if():
     return iface
 
 def handle_pkt(pkt):
+    ltime = time.time()
     mutex.acquire()
     try:
         print('New packet -----------------------------------------')
         print('on interface: ' + iface)
+        print("Time of arrival: " + str(ltime))
 
         if (IP in pkt):
             print('IP header in packet')
