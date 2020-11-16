@@ -55,7 +55,6 @@ header int_filho_t {
 
 struct metadata {
     bit<32> nRemaining;
-    bit<1>  lastHop;
 }
 
 struct headers {
@@ -136,10 +135,6 @@ control MyIngress(inout headers hdr,
         mark_to_drop();
     }
 
-    action multicast() {
-        standard_metadata.mcast_grp = 1;
-    }
-
     action ipv4_forward(macAddr_t dstAddr, egressSpec_t port, switchID_t switchID) {
         standard_metadata.egress_spec = port;
         hdr.intFilho[0].Porta_Saida   = port;
@@ -147,14 +142,6 @@ control MyIngress(inout headers hdr,
         hdr.ethernet.srcAddr = hdr.ethernet.dstAddr;
         hdr.ethernet.dstAddr = dstAddr;
         hdr.ipv4.ttl = hdr.ipv4.ttl - 1;
-
-        if (port == 1) {
-            meta.lastHop = 1;
-            // multicast();
-        }
-        else {
-            meta.lastHop = 0;
-        }
     }
 
     action new_intPai() {
@@ -178,7 +165,6 @@ control MyIngress(inout headers hdr,
             hdr.ipv4.dstAddr: lpm;
         }
         actions = {
-            multicast;
             ipv4_forward;
             drop;
             NoAction;
@@ -188,8 +174,6 @@ control MyIngress(inout headers hdr,
     }
 
     apply {
-
-
         if (hdr.ipv4.flags == 4 || hdr.ipv4.flags == 5 || hdr.ipv4.flags == 6 || hdr.ipv4.flags == 7) {
             if (hdr.intPai.isValid()) {
                 new_intFilho();
@@ -219,18 +203,7 @@ control MyIngress(inout headers hdr,
 control MyEgress(inout headers hdr,
                  inout metadata meta,
                  inout standard_metadata_t standard_metadata) {
-    apply {
-
-        
-        // clone(CloneType.E2E, (bit<32>)32w100);
-
-        // if (meta.lastHop == 1) {
-        //     if (standard_metadata.instance_type == 0) {
-        //         // Original packet
-        //         clone(CloneType.E2E, (bit<32>)32w100);
-        //     }
-        // }
-    }
+    apply {  }
 }
 
 /*************************************************************************
