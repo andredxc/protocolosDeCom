@@ -227,7 +227,7 @@ control MyIngress(inout headers hdr,
             }
         }
 
-        if(hdr.ipv4.protocol != INFO_PROTOCOL && meta.lasthop == 1 && standard_metadata.instance_type == INSTANCE_TYPE_NORMAL){ //if last hop. Could also be meta.lasthop == 1
+        if( meta.lasthop == 1 && hdr.ipv4.protocol != INFO_PROTOCOL){ //if last hop. Could also be meta.egress_spec == 1
             clone3(CloneType.I2E, 250, {standard_metadata, meta});
             standard_metadata.egress_spec = standard_metadata.ingress_port; //send back
             hdr.ipv4.protocol = INFO_PROTOCOL;  //turn it into an INFO pkt
