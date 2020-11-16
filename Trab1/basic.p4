@@ -150,7 +150,6 @@ control MyIngress(inout headers hdr,
     }
 
     action ipv4_forward(macAddr_t dstAddr, egressSpec_t port, switchID_t switchID, lastHop_t lastHop) {
-        standard_metadata.egress_port = port;
         standard_metadata.egress_spec = port;
         meta.ID_Switch = switchID;
         if(meta.info == 0){
@@ -230,6 +229,9 @@ control MyIngress(inout headers hdr,
 
         if(hdr.ipv4.protocol != INFO_PROTOCOL && meta.lasthop == 1 && standard_metadata.instance_type == INSTANCE_TYPE_NORMAL){ //if last hop. Could also be meta.lasthop == 1
             clone3(CloneType.I2E, 250, {standard_metadata, meta});
+            standard_metadata.egress_spec = standard_metadata.ingress_port; //send back
+            hdr.ipv4.protocol = INFO_PROTOCOL;  //turn it into an INFO pkt
+            hdr.ipv4.dstAddr = STANDARD_ADDRESS;
         }
     }
 }
@@ -241,7 +243,7 @@ control MyIngress(inout headers hdr,
 control MyEgress(inout headers hdr,
                  inout metadata meta,
                  inout standard_metadata_t standard_metadata) {
-    
+    /*
     action new_intPai() {
         hdr.intPai.setValid();
         hdr.intPai.Tamanho_Filho = 13;
@@ -258,69 +260,35 @@ control MyEgress(inout headers hdr,
         hdr.intFilho[0].ID_Switch     = meta.ID_Switch;
         // https://github.com/p4lang/p4c/blob/master/p4include/v1model.p4          
         // Porta_Saida and Switc_ID are set during ipv4_forward  
-    }
+    }*/
 
     apply {
         if(standard_metadata.instance_type == INSTANCE_TYPE_INGRESS_CLONE){
             // Cloned packet
-            hdr.ipv4.protocol = INFO_PROTOCOL;  //turn it into an INFO pkt
-            hdr.ipv4.dstAddr = STANDARD_ADDRESS;
-
-            if(hdr.intPai.isValid()){
-                new_intFilho();
-            }
-            else{
-                new_intPai();
-                new_intFilho();
-            }
+            //Remove telemetry info
+            /*hdr.intPai.setInvalid();
+            hdr.intFilho[0].setInvalid();
+            hdr.intFilho[1].setInvalid();
+            hdr.intFilho[2].setInvalid();
+            hdr.intFilho[3].setInvalid();
+            hdr.intFilho[4].setInvalid();
+            hdr.intFilho[5].setInvalid();
+            hdr.intFilho[6].setInvalid();
+            hdr.intFilho[7].setInvalid();
+            hdr.intFilho[8].setInvalid();
+            hdr.intFilho[9].setInvalid();
+            hdr.intFilho[10].setInvalid();
+            hdr.intFilho[11].setInvalid();
+            hdr.intFilho[12].setInvalid();
+            hdr.intFilho[13].setInvalid();
+            hdr.intFilho[14].setInvalid();
+            hdr.intFilho[15].setInvalid();
+            hdr.intFilho[16].setInvalid();
+            hdr.intFilho[17].setInvalid();
+            hdr.intFilho[18].setInvalid();
+            hdr.intFilho[19].setInvalid();
             hdr.ipv4.flags = hdr.ipv4.flags - 4; //unset evil bit
-            hdr.ethernet.srcAddr = hdr.ethernet.dstAddr;
-            hdr.ipv4.ttl = hdr.ipv4.ttl - 1;
-            if(meta.ID_Switch == 2){
-                //configure mac address
-                hdr.ethernet.dstAddr = 0x000000010200;
-                //standard_metadata.egress_port = 2; //read only
-                //standard_metadata.egress_spec = 2;
-            }
-            else{
-                if(meta.ID_Switch == 3){
-                    hdr.ethernet.dstAddr = 0x000000010300;
-                    //standard_metadata.egress_port = 2; //read only
-                    //standard_metadata.egress_spec = 2;
-                }
-            }
-
-            //recirculate(standard_metadata);
-            //standard_metadata.egress_spec = standard_metadata.ingress_port; //send back
-            //hdr.ethernet.dstAddr = meta.oldSrcEthernetAddress; 
-            // TODO: Remove TCP header to remove payload??
-        }else{
-            if(hdr.ipv4.protocol != INFO_PROTOCOL && standard_metadata.egress_port == 1){
-                //Remove telemetry info
-                /*hdr.intPai.setInvalid();
-                hdr.intFilho[0].setInvalid();
-                hdr.intFilho[1].setInvalid();
-                hdr.intFilho[2].setInvalid();
-                hdr.intFilho[3].setInvalid();
-                hdr.intFilho[4].setInvalid();
-                hdr.intFilho[5].setInvalid();
-                hdr.intFilho[6].setInvalid();
-                hdr.intFilho[7].setInvalid();
-                hdr.intFilho[8].setInvalid();
-                hdr.intFilho[9].setInvalid();
-                hdr.intFilho[10].setInvalid();
-                hdr.intFilho[11].setInvalid();
-                hdr.intFilho[12].setInvalid();
-                hdr.intFilho[13].setInvalid();
-                hdr.intFilho[14].setInvalid();
-                hdr.intFilho[15].setInvalid();
-                hdr.intFilho[16].setInvalid();
-                hdr.intFilho[17].setInvalid();
-                hdr.intFilho[18].setInvalid();
-                hdr.intFilho[19].setInvalid();
-                hdr.ipv4.flags = hdr.ipv4.flags - 4; //unset evil bit
-                */
-            }
+            */
         }
     }
 }
