@@ -5,6 +5,16 @@
 const bit<16> TYPE_IPV4 = 0x800;
 
 #define MAX_HOPS 20
+#define STANDARD_ADDRESS 0x0A000101 //10.0.1.1
+#define INFO_PROTOCOL 145 //https://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml - 145 is unassigned
+
+const bit<32> INSTANCE_TYPE_NORMAL        = 0;
+const bit<32> INSTANCE_TYPE_INGRESS_CLONE = 1;
+const bit<32> INSTANCE_TYPE_EGRESS_CLONE  = 2;
+const bit<32> INSTANCE_TYPE_COALESCED     = 3;
+const bit<32> INSTANCE_TYPE_RECIRC        = 4;
+const bit<32> INSTANCE_TYPE_REPLICATION   = 5;
+const bit<32> INSTANCE_TYPE_RESUBMIT      = 6;
 
 /*************************************************************************
 *********************** H E A D E R S  ***********************************
@@ -55,6 +65,7 @@ header int_filho_t {
 
 struct metadata {
     bit<32> nRemaining;
+    bit<32> lastHop;
 }
 
 struct headers {
@@ -142,6 +153,13 @@ control MyIngress(inout headers hdr,
         hdr.ethernet.srcAddr = hdr.ethernet.dstAddr;
         hdr.ethernet.dstAddr = dstAddr;
         hdr.ipv4.ttl = hdr.ipv4.ttl - 1;
+
+        if (port == 1) {
+            meta.lastHop = 1;
+        }
+        else {
+            meta.lastHop = 0;
+        }
     }
 
     action new_intPai() {
@@ -174,25 +192,35 @@ control MyIngress(inout headers hdr,
     }
 
     apply {
-        if (hdr.ipv4.flags == 4 || hdr.ipv4.flags == 5 || hdr.ipv4.flags == 6 || hdr.ipv4.flags == 7) {
-            if (hdr.intPai.isValid()) {
+
+        if (hdr.ipv4.protocol == INFO_PROTOCOL) {
+            // Packet is an info header, no int headers should be added to it
+            if (hdr.ipv4.isValid()) {
+                ipv4_lpm.apply();
+            }
+        }
+        else{
+            // Standard data packet, add int headers
+            if (hdr.ipv4.flags >= 4) {
+                if (hdr.intPai.isValid()) {
+                    new_intFilho();
+                    if (hdr.ipv4.isValid()) {
+                        ipv4_lpm.apply();
+                    }
+                }
+                else {
+                    drop();
+                }
+            } 
+            else {
+                hdr.ipv4.flags = hdr.ipv4.flags + 4;
+                new_intPai();
                 new_intFilho();
                 if (hdr.ipv4.isValid()) {
                     ipv4_lpm.apply();
                 }
             }
-            else {
-                drop();
-            }
-        } 
-        else {
-            hdr.ipv4.flags = hdr.ipv4.flags + 4;
-            new_intPai();
-            new_intFilho();
-            if (hdr.ipv4.isValid()) {
-                    ipv4_lpm.apply();
-            }
-        }
+        }       
     }
 }
 
@@ -203,7 +231,30 @@ control MyIngress(inout headers hdr,
 control MyEgress(inout headers hdr,
                  inout metadata meta,
                  inout standard_metadata_t standard_metadata) {
-    apply {  }
+    apply { 
+
+        if ((standard_metadata.instance_type == INSTANCE_TYPE_NORMAL)) {
+            // Packet is not a clone
+            if ((meta.lastHop == 1) && (hdr.ipv4.protocol != INFO_PROTOCOL)) {
+                // Clone data packet on the last hop
+                clone3(CloneType.E2E, 250, {standard_metadata, meta});
+                hdr.intPai.setInvalid();
+                hdr.intFilho[0].setInvalid();
+                hdr.intFilho[1].setInvalid();
+                hdr.ipv4.flags = 0;
+            }
+        }
+        else {
+            // Packet is a clone
+            hdr.ipv4.dstAddr  = STANDARD_ADDRESS;
+            hdr.ipv4.protocol = INFO_PROTOCOL;
+            hdr.intPai.setValid();
+            hdr.intFilho[0].setValid();
+            hdr.intFilho[1].setValid();
+            hdr.ipv4.flags = 4;
+            standard_metadata.egress_spec = standard_metadata.ingress_port;
+        }
+    }
 }
 
 /*************************************************************************

@@ -32,8 +32,14 @@ def get_if():
 
 def handle_pkt(pkt):
 
+    if (TCP in pkt) and (pkt[TCP].ack > 0):
+        # Packet is an ack, ignore
+        return
+    else:
+        print('New packet -------------------------------------------')
+
     if (IP in pkt):
-        print('IP header in packet')
+        print('IP header in packet, flags=%s' % str(pkt[IP].flags))
         if (pkt[IP].flags == 4 or pkt[IP].flags == 5 or pkt[IP].flags == 6 or pkt[IP].flags == 7):
             print('Evil bit is set')
             fullPayload = bytes(pkt[IP].payload)
@@ -55,9 +61,10 @@ def handle_pkt(pkt):
             print('TCP payload received: %s' % tcpPayload)
         else:
             print('Evil bit is not set, flags=' + str(pkt[IP].flags))
-    else:
-        print('Not an IP packet')
 
+            if (TCP in pkt):
+                print('TCP payload received: %s' % str(pkt[TCP].payload))
+            
 def main():
     ifaces = filter(lambda i: 'eth' in i, os.listdir('/sys/class/net/'))
     iface = ifaces[0]
