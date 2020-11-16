@@ -238,49 +238,54 @@ control MyIngress(inout headers hdr,
 control MyEgress(inout headers hdr,
                  inout metadata meta,
                  inout standard_metadata_t standard_metadata) {
-
-    /*action clone_packet() {
-        const bit<32> REPORT_MIRROR_SESSION_ID = 500;
-        // Clone from egress to egress pipeline
-        clone(CloneType.E2E, REPORT_MIRROR_SESSION_ID);
-    }*/
     
     apply {
-        //if(meta.lasthop == 1){
-            //clone_packet();
-            //clone(CloneType.E2E, (bit<32>)32w100);
-            //clone3(CloneType.E2E, E2E_CLONE_SESSION_ID, standard_metadata);
-        //}
         if(hdr.ipv4.protocol != INFO_PROTOCOL && standard_metadata.egress_port == 1 && standard_metadata.instance_type == BMV2_V1MODEL_INSTANCE_TYPE_NORMAL){ //if last hop. Could also be meta.lasthop == 1
             clone3(CloneType.E2E, 250, {meta});
         }
-        
-        if(hdr.ipv4.protocol != INFO_PROTOCOL && standard_metadata.egress_port == 1){
-            if (standard_metadata.instance_type == BMV2_V1MODEL_INSTANCE_TYPE_NORMAL){ // Original packet
-                    // Remove telemetry info
-                    //hdr.intPai.setInvalid();
-                    //hdr.intFilho[0].setInvalid();
-                    //hdr.intFilho[1].setInvalid();
-                    //hdr.intFilho[2].setInvalid();
-                    //hdr.ipv4.flags = hdr.ipv4.flags - 4; //unset evil bit
-                }
-                else{
-                    //if(standard_metadata.instance_type == BMV2_V1MODEL_INSTANCE_TYPE_EGRESS_CLONE){
-                        // Cloned packet
-                        hdr.ipv4.protocol = INFO_PROTOCOL;  //turn it into an INFO pkt
-                        hdr.ipv4.dstAddr = STANDARD_ADDRESS;
-                        hdr.ipv4.setValid();
-                        hdr.ipv4.flags = hdr.ipv4.flags - 4; //unset evil bit
 
-                        //if(meta.ID_Switch == 123){
-                            //TODO: configure mac addresses
-                        //}
-                        //recirculate(standard_metadata);
-                        
-                        //standard_metadata.egress_spec = standard_metadata.ingress_port; //send back
-                        //hdr.ethernet.dstAddr = meta.oldSrcEthernetAddress; 
-                        // TODO: Remove TCP header to remove payload??
-                    //}
+        if(standard_metadata.instance_type == BMV2_V1MODEL_INSTANCE_TYPE_EGRESS_CLONE){
+            // Cloned packet
+            hdr.ipv4.protocol = INFO_PROTOCOL;  //turn it into an INFO pkt
+            hdr.ipv4.dstAddr = STANDARD_ADDRESS;
+            //hdr.ipv4.flags = hdr.ipv4.flags - 4; //unset evil bit
+
+            //if(meta.ID_Switch == 3){
+                //TODO: configure mac addresses
+            //}
+            //recirculate(standard_metadata);
+            
+            //standard_metadata.egress_spec = standard_metadata.ingress_port; //send back
+            //hdr.ethernet.dstAddr = meta.oldSrcEthernetAddress; 
+            // TODO: Remove TCP header to remove payload??
+        }else{
+            if(hdr.ipv4.protocol != INFO_PROTOCOL && meta.lasthop == 1){
+                //Remove telemetry info
+                /*hdr.intPai.setInvalid();
+                hdr.intFilho[0].setInvalid();
+                hdr.intFilho[1].setInvalid();
+                hdr.intFilho[2].setInvalid();
+                hdr.intFilho[3].setInvalid();
+                hdr.intFilho[4].setInvalid();
+                hdr.intFilho[5].setInvalid();
+                hdr.intFilho[6].setInvalid();
+                hdr.intFilho[7].setInvalid();
+                hdr.intFilho[8].setInvalid();
+                hdr.intFilho[9].setInvalid();
+                hdr.intFilho[10].setInvalid();
+                hdr.intFilho[11].setInvalid();
+                hdr.intFilho[12].setInvalid();
+                hdr.intFilho[13].setInvalid();
+                hdr.intFilho[14].setInvalid();
+                hdr.intFilho[15].setInvalid();
+                hdr.intFilho[16].setInvalid();
+                hdr.intFilho[17].setInvalid();
+                hdr.intFilho[18].setInvalid();
+                hdr.intFilho[19].setInvalid();
+                hdr.ipv4.flags = hdr.ipv4.flags - 4; //unset evil bit
+                */
+            }
+        }
 
                 // if(standard_metadata.instance_type == EGRESS_CLONE){
                 //     hdr.ipv4.protocol = INFO_PROTOCOL;  //turn it into an INFO pkt
@@ -294,8 +299,6 @@ control MyEgress(inout headers hdr,
                 // }
 
                 //hdr.ipv4.flags = hdr.ipv4.flags - 4; //unset evil bit
-            }
-        }
     }
 }
 

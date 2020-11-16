@@ -60,10 +60,24 @@ def handle_pkt(pkt):
             print('Evil bit is not set, flags=' + str(pkt[IP].flags))
             # Read TCP payload
             if(pkt[IP].proto == INFO_PROTOCOL):
-                if(TCP in pkt):
-                    print('TCP payload: %s' % str(pkt[TCP].payload))
-                else:
-                    print('No TCP header in pkt.')
+                print('Info packet received!!')
+                fullPayload = bytes(pkt[IP].payload)
+                # Parse IntPai header
+                intPaiHdr = IntPai(fullPayload)
+                print('Parsed IntPai header: %s' % str(intPaiHdr))
+                
+                # Parse IntFilho headers
+                nStartIndex = intPaiHdr.nLengthBytes
+                for i in range(0, intPaiHdr.nChildren):
+                    payload      = fullPayload[nStartIndex : nStartIndex + intPaiHdr.nChildLength]
+                    newIntFilho  = IntFilho(payload)
+                    nStartIndex += intPaiHdr.nChildLength
+                    print('Read IntFilho[%d] header: %s' % (i, str(newIntFilho)))
+
+                # Read TCP payload
+                nStartIndex = intPaiHdr.nLengthBytes + (intPaiHdr.nChildLength * intPaiHdr.nChildren) + c_nTCPHeaderLenBytes
+                tcpPayload  = fullPayload[nStartIndex:]
+                print('TCP payload received: %s' % tcpPayload)
             else:
                 print("Not an INFO pkt.")
                 if(TCP in pkt):
