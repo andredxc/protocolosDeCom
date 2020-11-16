@@ -4,7 +4,8 @@
 
 const bit<16> TYPE_IPV4 = 0x800;
 
-#define MAX_HOPS 20
+#define MAX_HOPS 4
+#define PAYLOAD_SIZE 100
 #define STANDARD_ADDRESS 0x0A000101 //10.0.1.1
 #define INFO_PROTOCOL 145 //https://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml - 145 is unassigned
 
@@ -19,12 +20,12 @@ const bit<32> INSTANCE_TYPE_RESUBMIT      = 6;
 *********************** H E A D E R S  ***********************************
 *************************************************************************/
 
-typedef bit<9>  egressSpec_t;
-typedef bit<48> macAddr_t;
-typedef bit<32> ip4Addr_t;
-typedef bit<32> switchID_t;
-typedef bit     lastHop_t;
-
+typedef bit<9>      egressSpec_t;
+typedef bit<48>     macAddr_t;
+typedef bit<32>     ip4Addr_t;
+typedef bit<32>     switchID_t;
+typedef bit         lastHop_t;
+typedef bit<PAYLOAD_SIZE>    payload_t;
 header ethernet_t {
     macAddr_t dstAddr;
     macAddr_t srcAddr;
@@ -63,8 +64,12 @@ header int_filho_t {
   // Total length: 104 bits (13 bytes)
 }
 
+header payload_h{
+    payload_t payload;
+}
+
 struct metadata {
-    //macAddr_t oldSrcEthernetAddress;
+    macAddr_t oldSrcEthernetAddress;
     bit<32> ID_Switch;
     bit lasthop;
     bit<32> nRemaining;
@@ -76,6 +81,7 @@ struct headers {
     ipv4_t       ipv4;
     int_pai_t    intPai;
     int_filho_t[MAX_HOPS] intFilho;
+    payload_h   payload;
 }
 
 /*************************************************************************
@@ -114,7 +120,7 @@ parser MyParser(packet_in packet,
         packet.extract(hdr.intPai);
         meta.nRemaining = hdr.intPai.Quantidade_Filhos;
         transition select(hdr.intPai.Quantidade_Filhos) {
-            0       : accept;
+            0       : parse_payload;
             default : parse_intFilho;
         }
     }
@@ -123,9 +129,14 @@ parser MyParser(packet_in packet,
         packet.extract(hdr.intFilho.next);
         meta.nRemaining = meta.nRemaining - 1;
         transition select(meta.nRemaining) {
-            0 : accept;
+            0 : parse_payload;
             default: parse_intFilho;
         }
+    }
+
+    state parse_payload {
+        packet.extract(hdr.payload);
+        transition accept;
     }
 }
 
@@ -156,7 +167,6 @@ control MyIngress(inout headers hdr,
             hdr.intFilho[0].Porta_Saida   = port;
             hdr.intFilho[0].ID_Switch     = switchID;
         }
-        //meta.oldSrcEthernetAddress = hdr.ethernet.srcAddr;
         hdr.ethernet.srcAddr = hdr.ethernet.dstAddr;
         hdr.ethernet.dstAddr = dstAddr;
         hdr.ipv4.ttl = hdr.ipv4.ttl - 1;
@@ -227,11 +237,16 @@ control MyIngress(inout headers hdr,
             }
         }
 
-        if( meta.lasthop == 1 && hdr.ipv4.protocol != INFO_PROTOCOL){ //if last hop. Could also be meta.egress_spec == 1
-            clone3(CloneType.I2E, 250, {standard_metadata, meta});
+        if(standard_metadata.egress_spec == 1 && hdr.ipv4.protocol != INFO_PROTOCOL){ //if last hop. Could also be meta.lasthop == 1
+            clone(CloneType.I2E, 250);
+            meta.oldSrcEthernetAddress = hdr.ethernet.srcAddr;
+            hdr.ethernet.srcAddr = hdr.ethernet.dstAddr;
+            hdr.ethernet.dstAddr = meta.oldSrcEthernetAddress;
             standard_metadata.egress_spec = standard_metadata.ingress_port; //send back
             hdr.ipv4.protocol = INFO_PROTOCOL;  //turn it into an INFO pkt
-            hdr.ipv4.dstAddr = STANDARD_ADDRESS;
+            hdr.ipv4.dstAddr = STANDARD_ADDRESS;//send to h1
+            hdr.ipv4.flags = hdr.ipv4.flags - 4; //unset evil bit
+            hdr.payload.setInvalid();//do not send tcp
         }
     }
 }
@@ -263,14 +278,17 @@ control MyEgress(inout headers hdr,
     }*/
 
     apply {
-        if(standard_metadata.instance_type == INSTANCE_TYPE_INGRESS_CLONE){
-            // Cloned packet
+        if(standard_metadata.instance_type == INSTANCE_TYPE_INGRESS_CLONE){ // Cloned packet
+            hdr.ipv4.ttl = hdr.ipv4.ttl - 1;
+            hdr.ipv4.flags = hdr.ipv4.flags - 4; //unset evil bit
             //Remove telemetry info
-            /*hdr.intPai.setInvalid();
+            hdr.intPai.setInvalid();
             hdr.intFilho[0].setInvalid();
             hdr.intFilho[1].setInvalid();
             hdr.intFilho[2].setInvalid();
             hdr.intFilho[3].setInvalid();
+            hdr.payload.setValid();
+            /*
             hdr.intFilho[4].setInvalid();
             hdr.intFilho[5].setInvalid();
             hdr.intFilho[6].setInvalid();
@@ -287,7 +305,6 @@ control MyEgress(inout headers hdr,
             hdr.intFilho[17].setInvalid();
             hdr.intFilho[18].setInvalid();
             hdr.intFilho[19].setInvalid();
-            hdr.ipv4.flags = hdr.ipv4.flags - 4; //unset evil bit
             */
         }
     }
@@ -327,6 +344,7 @@ control MyDeparser(packet_out packet, in headers hdr) {
             packet.emit(hdr.ipv4);
             packet.emit(hdr.intPai);
             packet.emit(hdr.intFilho);
+            packet.emit(hdr.payload);
     }
 }
 
