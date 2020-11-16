@@ -152,6 +152,7 @@ control MyIngress(inout headers hdr,
     }
 
     action ipv4_forward(macAddr_t dstAddr, egressSpec_t port, switchID_t switchID, lastHop_t lastHop) {
+        standard_metadata.egress_port = port;
         standard_metadata.egress_spec = port;
         meta.ID_Switch = switchID;
         if(meta.info == 0){
@@ -228,6 +229,10 @@ control MyIngress(inout headers hdr,
                 }
             }
         }
+
+        if(hdr.ipv4.protocol != INFO_PROTOCOL && standard_metadata.egress_port == 1 && standard_metadata.instance_type == BMV2_V1MODEL_INSTANCE_TYPE_NORMAL){ //if last hop. Could also be meta.lasthop == 1
+            clone3(CloneType.I2E, 250, {standard_metadata, meta});
+        }
     }
 }
 
@@ -239,15 +244,37 @@ control MyEgress(inout headers hdr,
                  inout metadata meta,
                  inout standard_metadata_t standard_metadata) {
     
-    apply {
-        if(hdr.ipv4.protocol != INFO_PROTOCOL && standard_metadata.egress_port == 1 && standard_metadata.instance_type == BMV2_V1MODEL_INSTANCE_TYPE_NORMAL){ //if last hop. Could also be meta.lasthop == 1
-            clone3(CloneType.E2E, 250, {meta});
-        }
+    action new_intPai() {
+        hdr.intPai.setValid();
+        hdr.intPai.Tamanho_Filho = 13;
+        hdr.intPai.Quantidade_Filhos = 0;
+    }
 
-        if(standard_metadata.instance_type == BMV2_V1MODEL_INSTANCE_TYPE_EGRESS_CLONE){
+    action new_intFilho() {
+        hdr.intPai.Quantidade_Filhos = hdr.intPai.Quantidade_Filhos + 1;
+        hdr.intFilho.push_front(1);
+        hdr.intFilho[0].setValid();
+        hdr.intFilho[0].Porta_Entrada = standard_metadata.ingress_port;
+        hdr.intFilho[0].Timestamp     = standard_metadata.ingress_global_timestamp;
+        hdr.intFilho[0].Porta_Saida   = standard_metadata.egress_port;
+        hdr.intFilho[0].ID_Switch     = meta.ID_Switch;
+        // https://github.com/p4lang/p4c/blob/master/p4include/v1model.p4          
+        // Porta_Saida and Switc_ID are set during ipv4_forward  
+    }
+
+    apply {
+        if(standard_metadata.instance_type == BMV2_V1MODEL_INSTANCE_TYPE_INGRESS_CLONE){
             // Cloned packet
             hdr.ipv4.protocol = INFO_PROTOCOL;  //turn it into an INFO pkt
             hdr.ipv4.dstAddr = STANDARD_ADDRESS;
+
+            if(hdr.intPai.isValid()){
+                new_intFilho();
+            }
+            else{
+                new_intPai();
+                new_intFilho();
+            }
             //hdr.ipv4.flags = hdr.ipv4.flags - 4; //unset evil bit
 
             //if(meta.ID_Switch == 3){
@@ -259,7 +286,7 @@ control MyEgress(inout headers hdr,
             //hdr.ethernet.dstAddr = meta.oldSrcEthernetAddress; 
             // TODO: Remove TCP header to remove payload??
         }else{
-            if(hdr.ipv4.protocol != INFO_PROTOCOL && meta.lasthop == 1){
+            if(hdr.ipv4.protocol != INFO_PROTOCOL && standard_metadata.egress_port == 1){
                 //Remove telemetry info
                 /*hdr.intPai.setInvalid();
                 hdr.intFilho[0].setInvalid();
