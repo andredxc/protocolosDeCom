@@ -43,6 +43,8 @@ def handle_pkt(pkt):
 
         if (IP in pkt):
             print('IP header in packet')
+            print('SRC: ' + str(pkt[IP].src) + '  DST: ' + str(pkt[IP].dst) + '  TTL: '+ str(pkt[IP].ttl) + '  PROTOCOL: '+ str(pkt[IP].proto))
+
             if (pkt[IP].flags == 4 or pkt[IP].flags == 5 or pkt[IP].flags == 6 or pkt[IP].flags == 7):
                 print('Evil bit is set')
                 fullPayload = bytes(pkt[IP].payload)
