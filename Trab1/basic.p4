@@ -85,14 +85,6 @@ struct headers {
     payload_h   payload;
 }
 
-struct metadata {
-    bit<32> nRemaining;
-    ethernet_t  info_ethernet;
-    ipv4_t  info_ipv4;
-    int_pai_t  info_intPai;
-    int_filho_t[MAX_HOPS] info_intFilho;
-}
-
 /*************************************************************************
 *********************** P A R S E R  ***********************************
 *************************************************************************/
@@ -338,7 +330,7 @@ control MyDeparser(packet_out packet, in headers hdr) {
             packet.emit(hdr.payload);
     }
 }
-*/
+
 
 /*************************************************************************
 ***********************  S W I T C H  *******************************
