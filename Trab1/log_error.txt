@@ -1,0 +1,130 @@
+sniffing on s2-eth3
+sniffing on s2-eth1
+sniffing on s1-eth1
+sniffing on s1-eth2
+sniffing on s2-eth2
+sniffing on s3-eth2
+sniffing on s3-eth1
+sniffing on s1-eth3
+sniffing on s3-eth3
+New packet -----------------------------------------
+on interface: s1-eth2
+Time of arrival: 1605586282.36
+IP header in packet
+SRC: 10.0.2.2  DST: 10.0.1.1  TTL: 61  PROTOCOL: 145
+Evil bit is not set, flags=0
+Info packet received!!
+Parsed IntPai header: <IntPai> ChildLength=13; Children=2; HeaderLength=8
+Read IntFilho[0] header: <IntFilho> SwitchID=3; Timestamp=41232196; InPort=3; OutPort=1; HeaderLength=13
+Read IntFilho[1] header: <IntFilho> SwitchID=2; Timestamp=41864242; InPort=1; OutPort=3; HeaderLength=13
+TCP payload received: 
+New packet -----------------------------------------
+on interface: s1-eth2
+Time of arrival: 1605586282.43
+IP header in packet
+SRC: 10.0.1.1  DST: 10.0.2.2  TTL: 63  PROTOCOL: 1
+Evil bit is not set, flags=0
+Not an INFO pkt.
+Not a TCP pkt
+New packet -----------------------------------------
+on interface: s2-eth1
+Time of arrival: 1605586282.32
+IP header in packet
+SRC: 10.0.2.2  DST: 10.0.3.3  TTL: 64  PROTOCOL: 6
+Evil bit is not set, flags=0
+Not an INFO pkt.
+TCP payload: oi Alberto
+New packet -----------------------------------------
+on interface: s2-eth1
+Time of arrival: 1605586282.38
+IP header in packet
+SRC: 10.0.1.1  DST: 10.0.2.2  TTL: 62  PROTOCOL: 1
+Evil bit is not set, flags=0
+Not an INFO pkt.
+Not a TCP pkt
+New packet -----------------------------------------
+on interface: s1-eth1
+Time of arrival: 1605586282.37
+IP header in packet
+SRC: 10.0.2.2  DST: 10.0.1.1  TTL: 60  PROTOCOL: 145
+Evil bit is not set, flags=0
+Info packet received!!
+Parsed IntPai header: <IntPai> ChildLength=13; Children=2; HeaderLength=8
+Read IntFilho[0] header: <IntFilho> SwitchID=3; Timestamp=41232196; InPort=3; OutPort=1; HeaderLength=13
+Read IntFilho[1] header: <IntFilho> SwitchID=2; Timestamp=41864242; InPort=1; OutPort=3; HeaderLength=13
+TCP payload received: 
+New packet -----------------------------------------
+on interface: s1-eth1
+Time of arrival: 1605586282.39
+IP header in packet
+SRC: 10.0.1.1  DST: 10.0.2.2  TTL: 64  PROTOCOL: 1
+Evil bit is not set, flags=0
+Not an INFO pkt.
+Not a TCP pkt
+New packet -----------------------------------------
+on interface: s2-eth3
+Time of arrival: 1605586282.43
+IP header in packet
+SRC: 10.0.2.2  DST: 10.0.3.3  TTL: 63  PROTOCOL: 6
+Evil bit is set
+Parsed IntPai header: <IntPai> ChildLength=13; Children=1; HeaderLength=8
+Read IntFilho[0] header: <IntFilho> SwitchID=2; Timestamp=41864242; InPort=1; OutPort=3; HeaderLength=13
+TCP payload received: oi Alberto
+New packet -----------------------------------------
+on interface: s2-eth3
+Time of arrival: 1605586282.44
+IP header in packet
+SRC: 10.0.2.2  DST: 10.0.1.1  TTL: 62  PROTOCOL: 145
+Evil bit is not set, flags=0
+Info packet received!!
+Parsed IntPai header: <IntPai> ChildLength=13; Children=2; HeaderLength=8
+Read IntFilho[0] header: <IntFilho> SwitchID=3; Timestamp=41232196; InPort=3; OutPort=1; HeaderLength=13
+Read IntFilho[1] header: <IntFilho> SwitchID=2; Timestamp=41864242; InPort=1; OutPort=3; HeaderLength=13
+TCP payload received: 
+New packet -----------------------------------------
+on interface: s2-eth2
+Time of arrival: 1605586282.36
+IP header in packet
+SRC: 10.0.2.2  DST: 10.0.1.1  TTL: 61  PROTOCOL: 145
+Evil bit is not set, flags=0
+Info packet received!!
+Parsed IntPai header: <IntPai> ChildLength=13; Children=2; HeaderLength=8
+Read IntFilho[0] header: <IntFilho> SwitchID=3; Timestamp=41232196; InPort=3; OutPort=1; HeaderLength=13
+Read IntFilho[1] header: <IntFilho> SwitchID=2; Timestamp=41864242; InPort=1; OutPort=3; HeaderLength=13
+TCP payload received: 
+New packet -----------------------------------------
+on interface: s2-eth2
+Time of arrival: 1605586282.39
+IP header in packet
+SRC: 10.0.1.1  DST: 10.0.2.2  TTL: 63  PROTOCOL: 1
+Evil bit is not set, flags=0
+Not an INFO pkt.
+Not a TCP pkt
+New packet -----------------------------------------
+on interface: s3-eth1
+Time of arrival: 1605586282.35
+IP header in packet
+SRC: 10.0.2.2  DST: 10.0.3.3  TTL: 62  PROTOCOL: 6
+Evil bit is not set, flags=0
+Not an INFO pkt.
+TCP payload: oi Alberto
+New packet -----------------------------------------
+on interface: s3-eth3
+Time of arrival: 1605586282.46
+IP header in packet
+SRC: 10.0.2.2  DST: 10.0.3.3  TTL: 63  PROTOCOL: 6
+Evil bit is set
+Parsed IntPai header: <IntPai> ChildLength=13; Children=1; HeaderLength=8
+Read IntFilho[0] header: <IntFilho> SwitchID=2; Timestamp=41864242; InPort=1; OutPort=3; HeaderLength=13
+TCP payload received: oi Alberto
+New packet -----------------------------------------
+on interface: s3-eth3
+Time of arrival: 1605586282.47
+IP header in packet
+SRC: 10.0.2.2  DST: 10.0.1.1  TTL: 62  PROTOCOL: 145
+Evil bit is not set, flags=0
+Info packet received!!
+Parsed IntPai header: <IntPai> ChildLength=13; Children=2; HeaderLength=8
+Read IntFilho[0] header: <IntFilho> SwitchID=3; Timestamp=41232196; InPort=3; OutPort=1; HeaderLength=13
+Read IntFilho[1] header: <IntFilho> SwitchID=2; Timestamp=41864242; InPort=1; OutPort=3; HeaderLength=13
+TCP payload received: 

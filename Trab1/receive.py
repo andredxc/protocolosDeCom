@@ -17,6 +17,7 @@ from scapy.all import bind_layers
 from int_headers import IntPai, IntFilho
 
 c_nTCPHeaderLenBytes = 20
+INFO_PROTOCOL = 145
 
 def get_if():
     ifs=get_if_list()
@@ -32,12 +33,9 @@ def get_if():
 
 def handle_pkt(pkt):
 
+    print('New packet --------------------------------')
+
     if (IP in pkt):
-<<<<<<< HEAD
-        print('\nIP header in packet')
-        if(TCP in pkt):
-            print('TCP payload: ' + str(pkt[TCP].payload))
-=======
         print('IP header in packet')
         if (pkt[IP].flags == 4 or pkt[IP].flags == 5 or pkt[IP].flags == 6 or pkt[IP].flags == 7):
             print('Evil bit is set')
@@ -58,9 +56,35 @@ def handle_pkt(pkt):
             nStartIndex = intPaiHdr.nLengthBytes + (intPaiHdr.nChildLength * intPaiHdr.nChildren) + c_nTCPHeaderLenBytes
             tcpPayload  = fullPayload[nStartIndex:]
             print('TCP payload received: %s' % tcpPayload)
->>>>>>> refs/remotes/origin/main
         else:
-            print('No TCP header in pkt')
+            print('Evil bit is not set, flags=' + str(pkt[IP].flags))
+            # Read TCP payload
+            if(pkt[IP].proto == INFO_PROTOCOL):
+                print('Info packet received!!')
+                fullPayload = bytes(pkt[IP].payload)
+                # Parse IntPai header
+                intPaiHdr = IntPai(fullPayload)
+                print('Parsed IntPai header: %s' % str(intPaiHdr))
+                
+                # Parse IntFilho headers
+                nStartIndex = intPaiHdr.nLengthBytes
+                for i in range(0, intPaiHdr.nChildren):
+                    payload      = fullPayload[nStartIndex : nStartIndex + intPaiHdr.nChildLength]
+                    newIntFilho  = IntFilho(payload)
+                    nStartIndex += intPaiHdr.nChildLength
+                    print('Read IntFilho[%d] header: %s' % (i, str(newIntFilho)))
+
+                # Read TCP payload
+                nStartIndex = intPaiHdr.nLengthBytes + (intPaiHdr.nChildLength * intPaiHdr.nChildren) + c_nTCPHeaderLenBytes
+                tcpPayload  = fullPayload[nStartIndex:]
+                print('TCP payload received: %s' % tcpPayload)
+            else:
+                print("Not an INFO pkt.")
+                if(TCP in pkt):
+                    print('TCP payload: %s' % str(pkt[TCP].payload))
+                else:
+                    print("Not a TCP pkt")
+                #print("Protocol: %s" % str(pkt[IP].proto))
     else:
         print('Not an IP packet')
 
