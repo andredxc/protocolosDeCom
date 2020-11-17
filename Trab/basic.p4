@@ -238,7 +238,7 @@ control MyIngress(inout headers hdr,
             }
         }
 
-        if(standard_metadata.egress_spec == 1 && hdr.ipv4.protocol != INFO_PROTOCOL && hdr.ipv4.protocol != ICMP_PROTOCOL){ //if last hop. Could also be meta.lasthop == 1
+        if(meta.lasthop == 1 && hdr.ipv4.protocol != INFO_PROTOCOL && hdr.ipv4.protocol != ICMP_PROTOCOL){ //if last hop. Could also be standard_metadata.egress_spec == 1
             clone(CloneType.I2E, 250);
             meta.oldSrcEthernetAddress = hdr.ethernet.srcAddr;
             hdr.ethernet.srcAddr = hdr.ethernet.dstAddr;
