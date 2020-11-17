@@ -8,6 +8,7 @@ const bit<16> TYPE_IPV4 = 0x800;
 #define PAYLOAD_SIZE 100
 #define STANDARD_ADDRESS 0x0A000101 //10.0.1.1
 #define INFO_PROTOCOL 145 //https://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml - 145 is unassigned
+#define ICMP_PROTOCOL 1
 
 const bit<32> INSTANCE_TYPE_NORMAL        = 0;
 const bit<32> INSTANCE_TYPE_INGRESS_CLONE = 1;
@@ -203,7 +204,7 @@ control MyIngress(inout headers hdr,
     }
 
     apply {
-        if(hdr.ipv4.protocol == INFO_PROTOCOL){   //if its an info packet, just forward
+        if(hdr.ipv4.protocol == INFO_PROTOCOL || hdr.ipv4.protocol == ICMP_PROTOCOL){   //if its an info packet, just forward
             meta.info = 1;
              if (hdr.ipv4.isValid()) {
                  ipv4_lpm.apply();
@@ -237,7 +238,7 @@ control MyIngress(inout headers hdr,
             }
         }
 
-        if(standard_metadata.egress_spec == 1 && hdr.ipv4.protocol != INFO_PROTOCOL){ //if last hop. Could also be meta.lasthop == 1
+        if(standard_metadata.egress_spec == 1 && hdr.ipv4.protocol != INFO_PROTOCOL && hdr.ipv4.protocol != ICMP_PROTOCOL){ //if last hop. Could also be meta.lasthop == 1
             clone(CloneType.I2E, 250);
             meta.oldSrcEthernetAddress = hdr.ethernet.srcAddr;
             hdr.ethernet.srcAddr = hdr.ethernet.dstAddr;
@@ -258,24 +259,6 @@ control MyIngress(inout headers hdr,
 control MyEgress(inout headers hdr,
                  inout metadata meta,
                  inout standard_metadata_t standard_metadata) {
-    /*
-    action new_intPai() {
-        hdr.intPai.setValid();
-        hdr.intPai.Tamanho_Filho = 13;
-        hdr.intPai.Quantidade_Filhos = 0;
-    }
-
-    action new_intFilho() {
-        hdr.intPai.Quantidade_Filhos = hdr.intPai.Quantidade_Filhos + 1;
-        hdr.intFilho.push_front(1);
-        hdr.intFilho[0].setValid();
-        hdr.intFilho[0].Porta_Entrada = standard_metadata.ingress_port;
-        hdr.intFilho[0].Timestamp     = standard_metadata.ingress_global_timestamp;
-        hdr.intFilho[0].Porta_Saida   = standard_metadata.egress_port;
-        hdr.intFilho[0].ID_Switch     = meta.ID_Switch;
-        // https://github.com/p4lang/p4c/blob/master/p4include/v1model.p4          
-        // Porta_Saida and Switc_ID are set during ipv4_forward  
-    }*/
 
     apply {
         if(standard_metadata.instance_type == INSTANCE_TYPE_INGRESS_CLONE){ // Cloned packet
